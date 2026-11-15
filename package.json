@@ -1,6 +1,6 @@
 {
   "name": "chrome-pet",
-  "version": "1.0.0",
+  "version": "0.1.1",
   "description": "크롬 확장프로그램용 펫 키우기 프로젝트",
   "main": "index.js",
   "scripts": {
@@ -21,8 +21,10 @@
   },
   "homepage": "https://github.com/mimddon/chrome-pet#readme",
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
     "@types/chrome": "^0.3.7",
     "@types/node": "^26.6.6",
+    "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
   }

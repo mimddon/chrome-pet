@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 155" shape-rendering="crispEdges">
+<ellipse cx="94" cy="144" rx="73" ry="8" fill="#654332" opacity=".2"/>
+<!-- upside-down old cardboard box: solid bottom becomes its top -->
+<path d="M24 53 71 27 151 45 107 73Z" fill="#bb8b5c" stroke="#563a2e" stroke-width="5" stroke-linejoin="bevel"/>
+<path d="M24 53 107 73 107 136 24 116Z" fill="#cf9a67" stroke="#563a2e" stroke-width="5"/>
+<path d="M107 73 151 45 151 111 107 136Z" fill="#aa744f" stroke="#563a2e" stroke-width="5"/>
+<path d="M57 37 88 29 166 45 135 58 134 78 115 85 115 64Z" fill="#eedbb9" opacity=".91"/>
+<path d="M115 64 135 58 135 78 115 85Z" fill="#d6b58a"/>
+<path d="M24 99 41 103 41 110 24 106M137 83 151 76 151 88 137 95" fill="#82583b"/>
+<path d="M66 93h9v7h-9zm-10 8h8v7h-8zm17 0h8v7h-8zm-11 9h13v7H62Z" fill="#66432d"/>
+<path d="M36 64h9v5h-9m88 37h7v6h-7" stroke="#8b5b3c" stroke-width="2"/>
+<path d="M50 52 76 39m-8 91 24 5" fill="none" stroke="#e3b783" stroke-width="3"/>
+</svg>

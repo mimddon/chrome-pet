@@ -1,5 +1,5 @@
+
 import { defineConfig } from "vite";
-import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   publicDir: "public",
@@ -9,14 +9,10 @@ export default defineConfig({
     emptyOutDir: true,
 
     rollupOptions: {
-      input: {
-        content: fileURLToPath(
-          new URL("./src/content/index.ts", import.meta.url)
-        ),
-      },
+      input: "src/content/index.ts",
 
       output: {
-        entryFileNames: "[name].js",
+        entryFileNames: "content.js",
         format: "iife",
         inlineDynamicImports: true,
       },
