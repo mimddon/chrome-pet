@@ -1,4 +1,3 @@
-
 {
   "manifest_version": 3,
   "name": "Chrome Pet",
@@ -12,6 +11,12 @@
       "matches": ["<all_urls>"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/**/*"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
