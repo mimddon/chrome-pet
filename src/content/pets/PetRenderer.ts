@@ -1,10 +1,6 @@
-
 import { Pet } from "./Pet";
 import { getPetImageUrl } from "../../shared/petConfig";
-import {
-  getOwnedPet,
-  increasePetAffection,
-} from "../../storage/petStorage";
+import { getOwnedPet, increasePetAffection } from "../../storage/petStorage";
 import { PetSettings } from "../ui/PetSettings";
 
 export class PetRenderer {
@@ -23,13 +19,8 @@ export class PetRenderer {
   // 오래된 애정도 조회 결과가 최신 값을 덮어쓰지 않도록 관리
   private affectionVersion = 0;
 
-  private readonly onDocumentPointerDown = (
-    event: PointerEvent,
-  ): void => {
-    if (
-      this.contextMenu &&
-      !this.contextMenu.contains(event.target as Node)
-    ) {
+  private readonly onDocumentPointerDown = (event: PointerEvent): void => {
+    if (this.contextMenu && !this.contextMenu.contains(event.target as Node)) {
       this.closeContextMenu();
     }
   };
@@ -74,8 +65,37 @@ export class PetRenderer {
     });
 
     // 좌클릭 → 쓰다듬기
-    this.element.addEventListener("click", () => {
-      void this.handlePetting();
+    let clickTimer: ReturnType<typeof setTimeout> | null = null;
+
+    this.element.addEventListener("click", (event) => {
+      if (event.detail >= 2) return;
+
+      if (clickTimer !== null) {
+        clearTimeout(clickTimer);
+      }
+
+      clickTimer = setTimeout(() => {
+        clickTimer = null;
+        void this.handlePetting();
+      }, 250);
+    });
+
+    // 더블클릭 → 나비 소환
+    this.element.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (clickTimer !== null) {
+        clearTimeout(clickTimer);
+        clickTimer = null;
+      }
+
+      this.element.dispatchEvent(
+        new CustomEvent("chrome-pet:butterfly", {
+          bubbles: true,
+          composed: true,
+        }),
+      );
     });
 
     // 우클릭 → 메뉴 열기
@@ -87,7 +107,6 @@ export class PetRenderer {
     });
 
     container.appendChild(this.element);
-
     this.render();
   }
 
@@ -100,8 +119,7 @@ export class PetRenderer {
 
     const flipX = this.pet.getDirection() === "left" ? -1 : 1;
 
-    this.element.style.transform =
-      `translate3d(${x}px, ${y}px, 0) scaleX(${flipX})`;
+    this.element.style.transform = `translate3d(${x}px, ${y}px, 0) scaleX(${flipX})`;
   }
 
   setImage(url: string): void {
@@ -120,10 +138,7 @@ export class PetRenderer {
       "dog/basic": "기본 강아지",
     };
 
-    return (
-      names[`${species}/${skin}`] ??
-      `${species} / ${skin}`
-    );
+    return names[`${species}/${skin}`] ?? `${species} / ${skin}`;
   }
 
   // ========================================
@@ -161,35 +176,25 @@ export class PetRenderer {
       this.playPettingAnimation(affection);
       this.showPettingEffect(affection);
 
-      console.log(
-        `[Chrome Pet] 쓰다듬기! 애정도: ${affection}`,
-      );
+      console.log(`[Chrome Pet] 쓰다듬기! 애정도: ${affection}`);
     } catch (error) {
-      console.error(
-        "[Chrome Pet] 쓰다듬기 실패",
-        error,
-      );
+      console.error("[Chrome Pet] 쓰다듬기 실패", error);
     } finally {
       this.pettingInProgress = false;
     }
   }
 
   // 상태창 애정도 실시간 갱신
-  private updateAffectionDisplay(
-    affection: number,
-  ): void {
+  private updateAffectionDisplay(affection: number): void {
     if (!this.affectionText?.isConnected) {
       return;
     }
 
-    this.affectionText.textContent =
-      `💗 애정도 ${affection.toLocaleString()}`;
+    this.affectionText.textContent = `💗 애정도 ${affection.toLocaleString()}`;
   }
 
   // 쓰다듬기 애니메이션
-  private playPettingAnimation(
-    affection: number,
-  ): void {
+  private playPettingAnimation(affection: number): void {
     this.element.animate(
       [
         { filter: "brightness(1)" },
@@ -204,9 +209,7 @@ export class PetRenderer {
   }
 
   // 쓰다듬기 이펙트
-  private showPettingEffect(
-    affection: number,
-  ): void {
+  private showPettingEffect(affection: number): void {
     const rect = this.element.getBoundingClientRect();
 
     let message = "♡ +1";
@@ -265,10 +268,7 @@ export class PetRenderer {
   // 우클릭 메뉴
   // ========================================
 
-  private showContextMenu(
-    x: number,
-    y: number,
-  ): void {
+  private showContextMenu(x: number, y: number): void {
     this.closeContextMenu();
 
     const menu = document.createElement("div");
@@ -277,21 +277,9 @@ export class PetRenderer {
     const menuWidth = 190;
     const menuHeight = 160;
 
-    const left = Math.max(
-      8,
-      Math.min(
-        x,
-        window.innerWidth - menuWidth - 8,
-      ),
-    );
+    const left = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
 
-    const top = Math.max(
-      8,
-      Math.min(
-        y,
-        window.innerHeight - menuHeight - 8,
-      ),
-    );
+    const top = Math.max(8, Math.min(y, window.innerHeight - menuHeight - 8));
 
     Object.assign(menu.style, {
       position: "fixed",
@@ -345,19 +333,13 @@ export class PetRenderer {
         fontFamily: "inherit",
       });
 
-      button.addEventListener(
-        "mouseenter",
-        () => {
-          button.style.background = "#3c4054";
-        },
-      );
+      button.addEventListener("mouseenter", () => {
+        button.style.background = "#3c4054";
+      });
 
-      button.addEventListener(
-        "mouseleave",
-        () => {
-          button.style.background = "transparent";
-        },
-      );
+      button.addEventListener("mouseleave", () => {
+        button.style.background = "transparent";
+      });
 
       button.addEventListener("click", () => {
         this.closeContextMenu();
@@ -382,11 +364,7 @@ export class PetRenderer {
 
     this.container.appendChild(menu);
 
-    document.addEventListener(
-      "pointerdown",
-      this.onDocumentPointerDown,
-      true,
-    );
+    document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
   }
 
   // ========================================
@@ -424,16 +402,12 @@ export class PetRenderer {
     const title = document.createElement("h2");
     title.textContent = "🐾 나의 펫";
 
-    title.style.cssText =
-      "margin:0 0 12px;font-size:18px;";
+    title.style.cssText = "margin:0 0 12px;font-size:18px;";
 
     // 펫 이미지
     const image = document.createElement("img");
 
-    image.src = getPetImageUrl(
-      this.pet.config,
-      "idle",
-    );
+    image.src = getPetImageUrl(this.pet.config, "idle");
 
     image.alt = this.getPetName();
 
@@ -450,23 +424,19 @@ export class PetRenderer {
     const name = document.createElement("h3");
     name.textContent = this.getPetName();
 
-    name.style.cssText =
-      "margin:8px 0;font-size:16px;";
+    name.style.cssText = "margin:8px 0;font-size:16px;";
 
     // 펫 정보
     const details = document.createElement("p");
 
     details.textContent =
-      `종류: ${this.pet.config.species} · ` +
-      `스킨: ${this.pet.config.skin}`;
+      `종류: ${this.pet.config.species} · ` + `스킨: ${this.pet.config.skin}`;
 
-    details.style.cssText =
-      "font-size:12px;color:#b5b7c7;";
+    details.style.cssText = "font-size:12px;color:#b5b7c7;";
 
     // 애정도 표시
     const affectionText = document.createElement("p");
-    affectionText.textContent =
-      "💗 애정도 불러오는 중...";
+    affectionText.textContent = "💗 애정도 불러오는 중...";
 
     affectionText.style.cssText = `
       font-size:16px;
@@ -481,11 +451,9 @@ export class PetRenderer {
     // 준비 중인 기능
     const notice = document.createElement("p");
 
-    notice.textContent =
-      "레벨 · 경험치 기능 준비 중";
+    notice.textContent = "레벨 · 경험치 기능 준비 중";
 
-    notice.style.cssText =
-      "font-size:12px;color:#b5b7c7;margin:12px 0;";
+    notice.style.cssText = "font-size:12px;color:#b5b7c7;margin:12px 0;";
 
     // 닫기 버튼
     const closeButton = document.createElement("button");
@@ -541,9 +509,7 @@ export class PetRenderer {
 
         // 조회 도중 쓰다듬기가 발생했다면
         // 오래된 결과로 화면을 덮어쓰지 않음
-        if (
-          requestVersion !== this.affectionVersion
-        ) {
+        if (requestVersion !== this.affectionVersion) {
           return;
         }
 
@@ -552,18 +518,14 @@ export class PetRenderer {
         this.updateAffectionDisplay(affection);
       })
       .catch((error) => {
-        console.error(
-          "[Chrome Pet] 애정도 조회 실패",
-          error,
-        );
+        console.error("[Chrome Pet] 애정도 조회 실패", error);
 
         if (
           panel.isConnected &&
           this.statusPanel === panel &&
           requestVersion === this.affectionVersion
         ) {
-          affectionText.textContent =
-            "애정도를 불러오지 못했습니다.";
+          affectionText.textContent = "애정도를 불러오지 못했습니다.";
         }
       });
   }

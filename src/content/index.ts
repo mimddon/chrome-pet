@@ -12,15 +12,17 @@ import { PetAnimator } from "./pets/PetAnimator";
 import { MovementSystem } from "./systems/MovementSystem";
 import { BehaviorSystem } from "./systems/BehaviorSystem";
 import { GameLoop } from "./systems/GameLoop";
+import { ButterflySystem } from "./systems/ButterflySystem";
 
 type PetRuntime = {
   destroy: () => void;
+  spawnButterfly: () => void;
 };
 
 let currentRuntime: PetRuntime | null = null;
 let gachaInProgress = false;
 
-// 펫 생성 및 게임 루프 실행
+// 펫 생성
 function startPet(owned: OwnedPet): PetRuntime {
   const petConfig: PetConfig = {
     species: owned.species,
@@ -62,6 +64,13 @@ function startPet(owned: OwnedPet): PetRuntime {
   const movement = new MovementSystem(80);
   const behavior = new BehaviorSystem(pet, movement);
 
+  // 나비 시스템 생성
+  const butterfly = new ButterflySystem(
+    pet,
+    behavior,
+    container,
+  );
+
   const gameLoop = new GameLoop((deltaTime) => {
     behavior.update(deltaTime);
     animator.update(deltaTime);
@@ -71,15 +80,20 @@ function startPet(owned: OwnedPet): PetRuntime {
   gameLoop.start();
 
   return {
+    spawnButterfly() {
+      butterfly.spawn();
+    },
+
     destroy() {
       gameLoop.stop();
+      butterfly.destroy();
       renderer.destroy();
       container.remove();
     },
   };
 }
 
-// 현재 펫을 새로운 펫으로 교체
+// 현재 펫 교체
 function replacePet(owned: OwnedPet): void {
   currentRuntime?.destroy();
   currentRuntime = null;
@@ -93,15 +107,13 @@ function replacePet(owned: OwnedPet): void {
   );
 }
 
-// 설정에서 다시 뽑기 요청
+// 다시 뽑기
 async function rerollPet(): Promise<void> {
   if (gachaInProgress) return;
 
   gachaInProgress = true;
 
   try {
-    console.log("[Chrome Pet] 다시 뽑기 시작");
-
     const newPet = await showGachaModal("reroll");
 
     if (!newPet) {
@@ -124,12 +136,19 @@ async function rerollPet(): Promise<void> {
   }
 }
 
-// PetRenderer → PetSettings에서 전달한 이벤트 수신
+// 설정 → 다시 뽑기 이벤트
 document.addEventListener("chrome-pet:reroll", () => {
   void rerollPet();
 });
 
-// 확장 프로그램 최초 실행
+// 더블클릭 → 나비 소환 이벤트
+document.addEventListener("chrome-pet:butterfly", () => {
+  if (gachaInProgress) return;
+
+  currentRuntime?.spawnButterfly();
+});
+
+// 최초 실행
 async function main(): Promise<void> {
   if (
     document.getElementById("chrome-pet-root") ||

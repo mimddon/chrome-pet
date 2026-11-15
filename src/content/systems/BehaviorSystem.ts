@@ -2,19 +2,17 @@
 import { Pet } from "../pets/Pet";
 import { MovementSystem } from "./MovementSystem";
 
-type BehaviorState = "idle" | "walking";
+type BehaviorState = "idle" | "walking" | "chasing";
 
 export class BehaviorSystem {
   private state: BehaviorState = "idle";
 
-  // 현재 행동이 끝나기까지 남은 시간 (초)
   private remainingTime = 0;
+  private chaseCallback: (() => void) | null = null;
 
-  // 대기 시간 범위
   private readonly minIdleTime = 2;
   private readonly maxIdleTime = 6;
 
-  // 이동 거리 범위 (px)
   private readonly minWalkDistance = 80;
   private readonly maxWalkDistance = 250;
 
@@ -26,7 +24,22 @@ export class BehaviorSystem {
   }
 
   update(deltaTime: number): void {
-    // 이동 중이면 MovementSystem이 이동을 담당
+    // 나비를 추적하는 중
+    if (this.state === "chasing") {
+      this.movement.update(this.pet, deltaTime);
+
+      if (!this.movement.isMoving()) {
+        const callback = this.chaseCallback;
+        this.chaseCallback = null;
+
+        this.startIdle();
+        callback?.();
+      }
+
+      return;
+    }
+
+    // 기존 랜덤 이동
     if (this.state === "walking") {
       this.movement.update(this.pet, deltaTime);
 
@@ -45,8 +58,48 @@ export class BehaviorSystem {
     }
   }
 
+  // 나비를 향해 이동 시작
+  chase(
+    targetX: number,
+    onArrived: () => void,
+  ): void {
+    // 기존 랜덤 이동 중단
+    this.movement.stop(this.pet);
+
+    const position = this.pet.getPosition();
+
+    const maxX = Math.max(
+      0,
+      window.innerWidth - this.pet.config.size,
+    );
+
+    const clampedX = Math.max(
+      0,
+      Math.min(targetX, maxX),
+    );
+
+    this.chaseCallback = onArrived;
+    this.state = "chasing";
+
+    this.movement.setTarget(
+      clampedX,
+      position.y,
+    );
+
+    this.pet.setState("walking");
+  }
+
+  // 추적 취소
+  cancelChase(): void {
+    if (this.state !== "chasing") return;
+
+    this.chaseCallback = null;
+    this.startIdle();
+  }
+
   private startIdle(): void {
     this.state = "idle";
+
     this.movement.stop(this.pet);
 
     this.remainingTime = this.random(
@@ -60,7 +113,6 @@ export class BehaviorSystem {
   private startWalk(): void {
     const position = this.pet.getPosition();
 
-    // 현재 위치를 기준으로 좌우 중 랜덤 선택
     const direction = Math.random() < 0.5 ? -1 : 1;
 
     const distance = this.random(
@@ -68,18 +120,18 @@ export class BehaviorSystem {
       this.maxWalkDistance,
     );
 
-    // 이동할 X 좌표 계산
     const targetX = position.x + direction * distance;
 
-    // 화면 경계 계산
     const maxX = Math.max(
       0,
       window.innerWidth - this.pet.config.size,
     );
 
-    const clampedX = Math.max(0, Math.min(targetX, maxX));
+    const clampedX = Math.max(
+      0,
+      Math.min(targetX, maxX),
+    );
 
-    // 이동할 공간이 없으면 반대 방향으로 시도
     if (Math.abs(clampedX - position.x) < 1) {
       const oppositeX = position.x - direction * distance;
 
