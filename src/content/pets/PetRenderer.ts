@@ -175,8 +175,6 @@ export class PetRenderer {
       // 쓰다듬기 반응
       this.playPettingAnimation(affection);
       this.showPettingEffect(affection);
-
-      console.log(`[Chrome Pet] 쓰다듬기! 애정도: ${affection}`);
     } catch (error) {
       console.error("[Chrome Pet] 쓰다듬기 실패", error);
     } finally {

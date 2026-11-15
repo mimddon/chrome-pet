@@ -101,10 +101,6 @@ function replacePet(owned: OwnedPet): void {
   document.getElementById("chrome-pet-root")?.remove();
 
   currentRuntime = startPet(owned);
-
-  console.log(
-    `[Chrome Pet] 현재 펫: ${owned.name}`,
-  );
 }
 
 // 다시 뽑기
@@ -117,15 +113,10 @@ async function rerollPet(): Promise<void> {
     const newPet = await showGachaModal("reroll");
 
     if (!newPet) {
-      console.log("[Chrome Pet] 다시 뽑기 취소");
       return;
     }
 
     replacePet(newPet);
-
-    console.log(
-      `[Chrome Pet] 펫 교체 완료: ${newPet.name}`,
-    );
   } catch (error) {
     console.error(
       "[Chrome Pet] 다시 뽑기 실패",

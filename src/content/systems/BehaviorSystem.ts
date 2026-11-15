@@ -6,7 +6,6 @@ type BehaviorState = "idle" | "walking" | "chasing";
 
 export class BehaviorSystem {
   private state: BehaviorState = "idle";
-
   private remainingTime = 0;
   private chaseCallback: (() => void) | null = null;
 
@@ -24,7 +23,7 @@ export class BehaviorSystem {
   }
 
   update(deltaTime: number): void {
-    // 나비를 추적하는 중
+    // 나비 추적 중
     if (this.state === "chasing") {
       this.movement.update(this.pet, deltaTime);
 
@@ -39,7 +38,7 @@ export class BehaviorSystem {
       return;
     }
 
-    // 기존 랜덤 이동
+    // 랜덤 이동 중
     if (this.state === "walking") {
       this.movement.update(this.pet, deltaTime);
 
@@ -58,38 +57,31 @@ export class BehaviorSystem {
     }
   }
 
-  // 나비를 향해 이동 시작
+  // 나비를 향해 X, Y 양쪽으로 이동
   chase(
     targetX: number,
+    targetY: number,
     onArrived: () => void,
   ): void {
-    // 기존 랜덤 이동 중단
     this.movement.stop(this.pet);
 
-    const position = this.pet.getPosition();
-
-    const maxX = Math.max(
-      0,
-      window.innerWidth - this.pet.config.size,
-    );
-
-    const clampedX = Math.max(
-      0,
-      Math.min(targetX, maxX),
+    const target = this.clampPosition(
+      targetX,
+      targetY,
     );
 
     this.chaseCallback = onArrived;
     this.state = "chasing";
 
     this.movement.setTarget(
-      clampedX,
-      position.y,
+      target.x,
+      target.y,
     );
 
     this.pet.setState("walking");
   }
 
-  // 추적 취소
+  // 나비 추적 취소
   cancelChase(): void {
     if (this.state !== "chasing") return;
 
@@ -110,44 +102,73 @@ export class BehaviorSystem {
     this.pet.setState("idle");
   }
 
+  // X, Y 양쪽으로 랜덤 이동
   private startWalk(): void {
     const position = this.pet.getPosition();
 
-    const direction = Math.random() < 0.5 ? -1 : 1;
+    const angle = Math.random() * Math.PI * 2;
 
     const distance = this.random(
       this.minWalkDistance,
       this.maxWalkDistance,
     );
 
-    const targetX = position.x + direction * distance;
+    const targetX =
+      position.x + Math.cos(angle) * distance;
 
-    const maxX = Math.max(
-      0,
-      window.innerWidth - this.pet.config.size,
+    const targetY =
+      position.y + Math.sin(angle) * distance;
+
+    const target = this.clampPosition(
+      targetX,
+      targetY,
     );
 
-    const clampedX = Math.max(
-      0,
-      Math.min(targetX, maxX),
-    );
-
-    if (Math.abs(clampedX - position.x) < 1) {
-      const oppositeX = position.x - direction * distance;
-
-      this.movement.setTarget(
-        Math.max(0, Math.min(oppositeX, maxX)),
-        position.y,
-      );
-    } else {
-      this.movement.setTarget(clampedX, position.y);
+    // 목표가 현재 위치와 너무 가까우면 잠시 대기
+    if (
+      Math.hypot(
+        target.x - position.x,
+        target.y - position.y,
+      ) < 10
+    ) {
+      this.startIdle();
+      return;
     }
+
+    this.movement.setTarget(
+      target.x,
+      target.y,
+    );
 
     this.state = "walking";
     this.pet.setState("walking");
   }
 
-  private random(min: number, max: number): number {
+  // 화면 경계 제한
+  private clampPosition(
+    x: number,
+    y: number,
+  ): { x: number; y: number } {
+    const maxX = Math.max(
+      0,
+      window.innerWidth - this.pet.config.size,
+    );
+
+    const maxY = Math.max(
+      0,
+      window.innerHeight - this.pet.config.size,
+    );
+
+    return {
+      x: Math.max(0, Math.min(x, maxX)),
+      y: Math.max(0, Math.min(y, maxY)),
+    };
+  }
+
+  private random(
+    min: number,
+    max: number,
+  ): number {
     return min + Math.random() * (max - min);
   }
 }
