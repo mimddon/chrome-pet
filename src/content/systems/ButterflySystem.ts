@@ -10,15 +10,23 @@ export class ButterflySystem {
   private readonly minDistance = 100;
   private readonly maxDistance = 250;
 
+  // 성공 이펙트 중 중복 소환 방지
+  private catching = false;
+  private destroyed = false;
+
+  private readonly effects = new Set<HTMLElement>();
+
   constructor(
     private readonly pet: Pet,
     private readonly behavior: BehaviorSystem,
     private readonly container: HTMLElement,
   ) {}
 
+  // 나비 생성
   spawn(): void {
-    // 중복 소환 방지
-    if (this.butterfly) return;
+    if (this.butterfly || this.catching || this.destroyed) {
+      return;
+    }
 
     const position = this.pet.getPosition();
     const petSize = this.pet.config.size;
@@ -33,7 +41,7 @@ export class ButterflySystem {
       window.innerHeight - petSize,
     );
 
-    // 랜덤 각도와 거리 계산
+    // 나비 생성 방향 및 거리
     const angle = Math.random() * Math.PI * 2;
 
     const distance =
@@ -41,7 +49,6 @@ export class ButterflySystem {
       Math.random() *
         (this.maxDistance - this.minDistance);
 
-    // 펫이 이동할 목표 좌표
     const targetX = Math.max(
       0,
       Math.min(
@@ -58,7 +65,6 @@ export class ButterflySystem {
       ),
     );
 
-    // 나비를 목표 위치의 펫 중심 부근에 배치
     const butterflyX = Math.max(
       0,
       Math.min(
@@ -98,7 +104,7 @@ export class ButterflySystem {
     this.container.appendChild(butterfly);
     this.butterfly = butterfly;
 
-    // 위아래로 떠다니는 나비 효과
+    // 나비가 둥둥 떠다니는 효과
     this.flyingAnimation = butterfly.animate(
       [
         {
@@ -118,7 +124,7 @@ export class ButterflySystem {
       },
     );
 
-    // X, Y 좌표 모두 전달
+    // 나비 위치로 이동
     this.behavior.chase(
       targetX,
       targetY,
@@ -126,12 +132,200 @@ export class ButterflySystem {
     );
   }
 
+  // 나비 잡기 성공
   private catchButterfly(): void {
-    if (!this.butterfly) return;
+    if (!this.butterfly || this.catching || this.destroyed) {
+      return;
+    }
 
-    this.removeButterfly();
+    this.catching = true;
+
+    const butterfly = this.butterfly;
+
+    // 기존 날갯짓 애니메이션 종료
+    this.flyingAnimation?.cancel();
+    this.flyingAnimation = null;
+
+    const rect = butterfly.getBoundingClientRect();
+
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    // 나비가 작아지면서 사라지는 효과
+    const vanish = butterfly.animate(
+      [
+        {
+          opacity: 1,
+          transform: "scale(1) rotate(0deg)",
+        },
+        {
+          opacity: 0,
+          transform: "scale(0.2) rotate(180deg)",
+        },
+      ],
+      {
+        duration: 350,
+        easing: "ease-in",
+        fill: "forwards",
+      },
+    );
+
+    // 별 이펙트
+    this.showSparkles(centerX, centerY);
+
+    // Catch! 메시지
+    this.showSuccessMessage(centerX, centerY - 30);
+
+    console.log("[Chrome Pet] Catch!");
+
+    void vanish.finished
+      .catch(() => undefined)
+      .then(() => {
+        if (this.destroyed) return;
+
+        this.removeButterfly();
+        this.catching = false;
+      });
   }
 
+  // 반짝이는 별 이펙트
+  private showSparkles(
+    centerX: number,
+    centerY: number,
+  ): void {
+    const sparkleCount = 8;
+
+    for (let i = 0; i < sparkleCount; i++) {
+      const angle =
+        (Math.PI * 2 * i) / sparkleCount;
+
+      const distance = 35 + Math.random() * 25;
+
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+
+      const sparkle = document.createElement("div");
+
+      sparkle.textContent = i % 2 === 0 ? "✦" : "✧";
+
+      Object.assign(sparkle.style, {
+        position: "fixed",
+        left: `${centerX}px`,
+        top: `${centerY}px`,
+        color: i % 2 === 0 ? "#ffe17b" : "#ffffff",
+        fontSize: `${14 + Math.random() * 10}px`,
+        fontWeight: "bold",
+        pointerEvents: "none",
+        userSelect: "none",
+        zIndex: "2147483647",
+      });
+
+      this.container.appendChild(sparkle);
+      this.effects.add(sparkle);
+
+      const animation = sparkle.animate(
+        [
+          {
+            opacity: 1,
+            transform: "translate(-50%, -50%) scale(0.5)",
+          },
+          {
+            opacity: 1,
+            transform:
+              `translate(calc(-50% + ${dx * 0.6}px), ` +
+              `calc(-50% + ${dy * 0.6}px)) scale(1.2)`,
+            offset: 0.5,
+          },
+          {
+            opacity: 0,
+            transform:
+              `translate(calc(-50% + ${dx}px), ` +
+              `calc(-50% + ${dy}px)) scale(0.3)`,
+          },
+        ],
+        {
+          duration: 700,
+          easing: "ease-out",
+          fill: "forwards",
+        },
+      );
+
+      void animation.finished
+        .catch(() => undefined)
+        .then(() => {
+          sparkle.remove();
+          this.effects.delete(sparkle);
+        });
+    }
+  }
+
+  // Catch! 성공 메시지
+  private showSuccessMessage(
+    x: number,
+    y: number,
+  ): void {
+    const message = document.createElement("div");
+
+    message.textContent = "Catch!";
+
+    Object.assign(message.style, {
+      position: "fixed",
+      left: `${x}px`,
+      top: `${y}px`,
+      transform: "translateX(-50%)",
+      color: "#ffda70",
+      fontSize: "20px",
+      fontWeight: "900",
+      letterSpacing: "1px",
+      fontFamily: "sans-serif",
+      textShadow:
+        "0 2px 6px rgba(0,0,0,0.65)",
+      whiteSpace: "nowrap",
+      pointerEvents: "none",
+      userSelect: "none",
+      zIndex: "2147483647",
+    });
+
+    this.container.appendChild(message);
+    this.effects.add(message);
+
+    const animation = message.animate(
+      [
+        {
+          opacity: 0,
+          transform: "translate(-50%, 8px) scale(0.8)",
+        },
+        {
+          opacity: 1,
+          transform: "translate(-50%, -12px) scale(1.1)",
+          offset: 0.25,
+        },
+        {
+          opacity: 1,
+          transform: "translate(-50%, -25px) scale(1)",
+          offset: 0.65,
+        },
+        {
+          opacity: 0,
+          transform: "translate(-50%, -55px) scale(0.9)",
+        },
+      ],
+      {
+        duration: 1300,
+        easing: "ease-out",
+        fill: "forwards",
+      },
+    );
+
+    void animation.finished
+      .catch(() => undefined)
+      .then(() => {
+        message.remove();
+        this.effects.delete(message);
+      });
+  }
+
+  // 나비 제거
   private removeButterfly(): void {
     this.flyingAnimation?.cancel();
     this.flyingAnimation = null;
@@ -140,8 +334,17 @@ export class ButterflySystem {
     this.butterfly = null;
   }
 
+  // 펫 제거 시 정리
   destroy(): void {
+    this.destroyed = true;
+
     this.behavior.cancelChase();
     this.removeButterfly();
+
+    for (const effect of this.effects) {
+      effect.remove();
+    }
+
+    this.effects.clear();
   }
 }

@@ -224,7 +224,7 @@ export function showGachaModal(
         revealed = true;
 
         drawButton.textContent = isReroll
-          ? "이 펫으로 교체하기"
+          ? "교체하기"
           : "함께 놀러가기";
 
         if (cancelButton) {
