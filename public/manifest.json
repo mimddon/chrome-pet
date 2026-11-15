@@ -1,0 +1,17 @@
+
+{
+  "manifest_version": 3,
+  "name": "Chrome Pet",
+  "version": "0.1.0",
+  "description": "웹페이지에서 함께 생활하는 2D 픽셀 고양이",
+  "action": {
+    "default_title": "Chrome Pet"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
