@@ -1,0 +1,26 @@
+{
+  "name": "chrome-pet",
+  "version": "1.0.0",
+  "description": "크롬 확장프로그램용 펫 키우기 프로젝트",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mimddon/chrome-pet.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mimddon/chrome-pet/issues"
+  },
+  "homepage": "https://github.com/mimddon/chrome-pet#readme",
+  "devDependencies": {
+    "@types/chrome": "^0.3.7",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}
