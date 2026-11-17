@@ -3,6 +3,8 @@ export type PetFeatureId =
   | "openPetStatus"
   | "openPetSettings"
   | "spawnButterfly"
+  | "enablePet"
+  | "disablePet"
   | "rerollPet";
 
 export type PetFeatureLocation = "petContextMenu" | "popup" | "popupSettings";

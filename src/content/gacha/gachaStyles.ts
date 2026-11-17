@@ -2,8 +2,8 @@ export const GACHA_STYLES = `
   * { box-sizing: border-box; }
   .overlay { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; background: rgba(26,20,25,.73); font-family: system-ui, 'Malgun Gothic', sans-serif; }
   .panel { width: min(420px, calc(100vw - 28px)); padding: 26px 24px 21px; border: 3px solid #705140; border-radius: 22px; background: #fff2db; color: #4e332b; text-align: center; box-shadow: 0 18px 0 #3c2928, 0 25px 60px rgba(0,0,0,.4); }
-  .heading { font-size: 25px; font-weight: 900; letter-spacing: -.6px; }
-  .subtitle { margin: 9px 0 5px; font-size: 14px; }
+  .heading { font-size: 25px; font-weight: 900; letter-spacing: -.6px; line-height: 1.4; }
+  .subtitle { margin: 14px 0 8px; font-size: 14px; line-height: 1.6; }
   .stage { height: 250px; display: grid; place-items: center; position: relative; isolation: isolate; }
   .box-art { width: 225px; height: 200px; object-fit: contain; image-rendering: pixelated; transform-origin: 50% 85%; filter: drop-shadow(0 12px 3px #7d5c4e48); }
   .pet-art { display: none; width: 180px; height: 180px; object-fit: contain; image-rendering: pixelated; position: absolute; bottom: 20px; }

@@ -20,6 +20,8 @@ export function createPetFeatures(actions: Partial<Record<PetFeatureId, PetFeatu
     createSpawnButterflyFeature(() => execute("spawnButterfly")),
     createRerollPetFeature(() => execute("rerollPet")),
     createOpenPetStatusFeature(() => execute("openPetStatus")),
+    createEnablePetFeature(() => execute("enablePet")),
+    createDisablePetFeature(() => execute("disablePet")),
     createOpenPetSettingsFeature(() => execute("openPetSettings")),
   ];
 }
@@ -28,4 +30,6 @@ import { createSpawnButterflyFeature } from "./spawnButterfly";
 import { createRerollPetFeature } from "./rerollPet";
 import { createOpenPetStatusFeature } from "./openPetStatus";
 import { createOpenPetSettingsFeature } from "./openPetSettings";
+import { createEnablePetFeature } from "./enablePet";
+import { createDisablePetFeature } from "./disablePet";
 import type { PetFeature, PetFeatureHandler, PetFeatureId } from "./types";

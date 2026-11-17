@@ -64,49 +64,7 @@ export class PetSettings {
 
     header.append(title, closeButton);
 
-    const section = document.createElement("div");
-    section.style.cssText = `
-      padding:14px;
-      background:#303344;
-      border-radius:12px;
-    `;
-
-    const sectionTitle = document.createElement("h3");
-    sectionTitle.textContent = "펫 관리";
-    sectionTitle.style.cssText = "margin:0 0 8px;font-size:14px;";
-
-    const description = document.createElement("p");
-    description.textContent = "새로운 랜덤 펫을 획득할 수 있어요.";
-    description.style.cssText = `
-      font-size:12px;
-      color:#b5b7c7;
-      margin:0 0 14px;
-    `;
-
-    section.append(sectionTitle, description);
-
-    const rerollButton = document.createElement("button");
-    rerollButton.textContent = `🎁 ${this.rerollFeature.label}`;
-
-    Object.assign(rerollButton.style, {
-      width: "100%",
-      padding: "12px",
-      border: "none",
-      borderRadius: "10px",
-      background: "#d99c62",
-      color: "#241b17",
-      fontWeight: "bold",
-      cursor: "pointer",
-    });
-
-    rerollButton.addEventListener("click", () => {
-      void Promise.resolve().then(this.rerollFeature.execute).catch((error) => {
-        console.error("[Chrome Pet] 다시 뽑기 요청 실패", error);
-      });
-    });
-    section.appendChild(rerollButton);
-
-    panel.append(header, section);
+    panel.append(header);
     overlay.appendChild(panel);
 
     overlay.addEventListener("click", (event) => {
@@ -172,7 +130,7 @@ export class PetSettings {
     confirmButton.style.background = "#d99c62";
     confirmButton.style.color = "#241b17";
 
-    cancelButton.addEventListener("click", () => this.open());
+    cancelButton.addEventListener("click", () => this.close());
 
     confirmButton.addEventListener("click", () => {
       this.close();

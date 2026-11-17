@@ -25,7 +25,6 @@ Chrome의 `chrome://extensions`에서 개발자 모드를 켜고 **압축해제�
 
 ```sh
 npm run typecheck
-npm test
 npm run build
 ```
 

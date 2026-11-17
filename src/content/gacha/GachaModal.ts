@@ -19,18 +19,11 @@ const delay = (ms: number) =>
 type GachaMode = "first" | "reroll";
 
 export function showGachaModal(
-  mode?: "first",
-): Promise<OwnedPet>;
-
-export function showGachaModal(
-  mode: "reroll",
-  instanceId: string,
-): Promise<OwnedPet | null>;
-
-export function showGachaModal(
   mode: GachaMode = "first",
   instanceId?: string,
+  signal?: AbortSignal,
 ): Promise<OwnedPet | null> {
+  if (signal?.aborted) return Promise.resolve(null);
   const existingModal = document.getElementById(
     "chrome-pet-gacha-root",
   );
@@ -74,7 +67,7 @@ export function showGachaModal(
       </div>
 
       <p class="subtitle" id="hint">
-        이 수상한 상자 안에 누가 있을까?
+        이 수상한 상자 안에 뭐가 있을까?
       </p>
 
       <div class="stage">
@@ -155,9 +148,16 @@ export function showGachaModal(
 
       finished = true;
       unsubscribe();
+      signal?.removeEventListener("abort", onAbort);
       host.remove();
       resolve(pet);
     };
+    const onAbort = (): void => finish(null);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) {
+      finish(null);
+      return;
+    }
 
     // 다른 탭에서 먼저 확정한 경우 이 탭의 뽑기도 닫고 같은 펫을 사용한다.
     unsubscribe = watchOwnedPet((pet) => {

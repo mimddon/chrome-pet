@@ -482,6 +482,11 @@ export class PetRenderer {
     };
 
     for (const item of items) {
+      if (item.id === "disablePet") {
+        const separator = document.createElement("hr");
+        separator.style.cssText = "border:0;border-top:1px solid #414558;margin:6px 0;";
+        menu.appendChild(separator);
+      }
       const button = document.createElement("button");
 
       button.type = "button";
@@ -500,6 +505,23 @@ export class PetRenderer {
         fontSize: "13px",
         fontFamily: "inherit",
       });
+
+      if (item.id === "disablePet") {
+        const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        icon.setAttribute("viewBox", "0 0 24 24");
+        icon.setAttribute("fill", "none");
+        icon.setAttribute("stroke", "currentColor");
+        icon.setAttribute("stroke-width", "2");
+        icon.setAttribute("stroke-linecap", "round");
+        icon.setAttribute("stroke-linejoin", "round");
+        icon.setAttribute("aria-hidden", "true");
+        icon.setAttribute("focusable", "false");
+        icon.style.cssText = "display:inline-block;width:14px;height:14px;vertical-align:-2px;margin-right:6px;pointer-events:none;";
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", "M12 2v10M18.36 6.64a9 9 0 1 1-12.73 0");
+        icon.appendChild(path);
+        button.prepend(icon);
+      }
 
       button.addEventListener("mouseenter", () => {
         button.style.background = "#3c4054";

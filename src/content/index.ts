@@ -1,5 +1,6 @@
 import type { PetConfig } from "../shared/petTypes";
 import { watchOwnedPet, type OwnedPet } from "../storage/petStorage";
+import { setPetEnabled, watchPetEnabled } from "../storage/petVisibility";
 import { showGachaModal } from "./gacha/GachaModal";
 import { Pet } from "./pets/Pet";
 import { PetRenderer } from "./pets/PetRenderer";
@@ -24,6 +25,10 @@ let currentRuntime: PetRuntime | null = null;
 let currentOwned: OwnedPet | null = null;
 let latestWorld: PetWorldSnapshot | null = null;
 let gachaInProgress = false;
+let petEnabled: boolean | null = null;
+let ownedReady = false;
+let runtimeInstanceId: string | null = null;
+let gachaController: AbortController | null = null;
 
 const world = new WorldConnection((message) => {
   if (message.type === "snapshot") {
@@ -63,6 +68,7 @@ function startPet(owned: OwnedPet): PetRuntime {
       if (!gachaInProgress) world.command(owned.instanceId, { action: "spawnButterfly" });
     },
     rerollPet: () => settings.confirmReroll(),
+    disablePet: () => setPetEnabled(false),
   });
   const rerollFeature = features.find((feature) => feature.id === "rerollPet")!;
   const settings = new PetSettings(rerollFeature, () => { void drawPet("reroll"); });
@@ -120,17 +126,35 @@ function startPet(owned: OwnedPet): PetRuntime {
 
 function syncPet(owned: OwnedPet | null): void {
   if (owned && currentOwned && owned.revision < currentOwned.revision) return;
-  if (owned && currentOwned?.instanceId === owned.instanceId) {
-    currentOwned = owned;
-    currentRuntime?.syncOwnedPet(owned);
+  currentOwned = owned;
+  ownedReady = true;
+  reconcilePet();
+}
+
+function clearRuntime(): void {
+  currentRuntime?.destroy();
+  currentRuntime = null;
+  runtimeInstanceId = null;
+}
+
+function reconcilePet(): void {
+  if (petEnabled === null || !ownedReady) return;
+  if (!petEnabled) {
+    gachaController?.abort();
+    clearRuntime();
     return;
   }
 
-  currentRuntime?.destroy();
-  currentRuntime = null;
-  currentOwned = owned;
+  const owned = currentOwned;
+  if (owned && currentRuntime && runtimeInstanceId === owned.instanceId) {
+    currentRuntime.syncOwnedPet(owned);
+    return;
+  }
+
+  clearRuntime();
   if (owned) {
     currentRuntime = startPet(owned);
+    runtimeInstanceId = owned.instanceId;
     if (latestWorld?.instanceId === owned.instanceId) currentRuntime.syncWorld(latestWorld);
   } else if (!gachaInProgress) {
     void drawPet("first");
@@ -138,17 +162,22 @@ function syncPet(owned: OwnedPet | null): void {
 }
 
 async function drawPet(mode: "first" | "reroll"): Promise<void> {
-  if (gachaInProgress || (mode === "reroll" && !currentOwned)) return;
+  if (!petEnabled || !ownedReady || gachaInProgress || (mode === "reroll" && !currentOwned)) return;
   gachaInProgress = true;
+  const controller = new AbortController();
+  gachaController = controller;
   try {
     const pet = mode === "first"
-      ? await showGachaModal()
-      : await showGachaModal("reroll", currentOwned!.instanceId);
+      ? await showGachaModal("first", undefined, controller.signal)
+      : await showGachaModal("reroll", currentOwned!.instanceId, controller.signal);
     if (pet) syncPet(pet);
   } catch (error) {
     console.error("[Chrome Pet] 펫 뽑기 실패", error);
   } finally {
     gachaInProgress = false;
+    gachaController = null;
+    // 끄기 직후 다시 켠 경우 이전 뽑기 정리가 끝난 뒤 최초 뽑기를 재개한다.
+    if (controller.signal.aborted && petEnabled && !currentOwned) reconcilePet();
   }
 }
 
@@ -168,3 +197,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse: (r
 });
 
 watchOwnedPet(syncPet);
+watchPetEnabled((enabled) => {
+  petEnabled = enabled;
+  world.setEnabled(enabled);
+  reconcilePet();
+});

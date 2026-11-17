@@ -1,6 +1,7 @@
 import { PetWorld } from "./PetWorld";
 import { WORLD_PORT_NAME, type PetWorldSnapshot, type WorldClientMessage, type WorldServerMessage } from "../shared/worldTypes";
 import type { OwnedPet } from "../storage/petState";
+import { watchPetEnabled } from "../storage/petVisibility";
 
 const WORLD_STORAGE_KEY = "chromePet.world";
 
@@ -15,6 +16,7 @@ export function createWorldHost(): {
   let lastSave = 0;
   let saved: PetWorldSnapshot | undefined;
   let ready = false;
+  let petEnabled = false;
   let pendingPet: OwnedPet | null = null;
   let saveQueue: Promise<unknown> = Promise.resolve();
 
@@ -41,7 +43,7 @@ export function createWorldHost(): {
   }
 
   function updateTimer(): void {
-    const active = ready && world && [...clients.values()].some((client) => client.visible);
+    const active = petEnabled && ready && world && [...clients.values()].some((client) => client.visible);
     if (active && timer === null) {
       lastTime = performance.now();
       timer = setInterval(() => {
@@ -82,6 +84,15 @@ export function createWorldHost(): {
     broadcast();
   }
 
+  watchPetEnabled((enabled) => {
+    petEnabled = enabled;
+    if (!enabled) {
+      for (const client of clients.values()) world?.release(client.id);
+    }
+    updateTimer();
+    if (enabled) broadcast();
+  });
+
   // session 저장소는 브라우저 재시작 때 초기화되며 서비스 워커 재시작에는 유지된다.
   void chrome.storage.session.get(WORLD_STORAGE_KEY).then(
     (data) => { saved = data[WORLD_STORAGE_KEY] as PetWorldSnapshot | undefined; },
@@ -104,7 +115,7 @@ export function createWorldHost(): {
         if (!client.visible) world?.release(client.id);
         updateTimer();
         broadcast();
-      } else if (message.type === "command" && client.visible &&
+      } else if (message.type === "command" && petEnabled && client.visible &&
         message.instanceId === world?.instanceId && message.command &&
         ["hold", "drag", "release", "spawnButterfly"].includes(message.command.action)) {
         world.command(client.id, message.command);
@@ -119,6 +130,7 @@ export function createWorldHost(): {
   return {
     setPet,
     notifyPetting(pet) {
+      if (!petEnabled) return;
       for (const port of clients.keys()) {
         post(port, { type: "petting", instanceId: pet.instanceId, affection: pet.affection });
       }
