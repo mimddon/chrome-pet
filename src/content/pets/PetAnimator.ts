@@ -25,6 +25,9 @@ export class PetAnimator {
     private readonly renderer: PetRenderer,
   ) {
     const config = pet.config;
+    const walkFrames = [1, 2, 3, 4].map((frame) =>
+      chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/walk-${frame}.png`),
+    );
 
     this.animations = {
       idle: {
@@ -33,9 +36,8 @@ export class PetAnimator {
         loop: true,
       },
       walk: {
-        // 걷기 이미지가 준비되기 전까지 idle 사용
-        frames: [getPetImageUrl(config, "idle")],
-        frameDuration: 150,
+        frames: walkFrames,
+        frameDuration: 200,
         loop: true,
       },
       sit: {
