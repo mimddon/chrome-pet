@@ -15,6 +15,7 @@ export interface PetWorldSnapshot {
   direction: PetDirection;
   state: PetState;
   animationTime: number;
+  tailWagTime: number | null;
   butterfly: ButterflyState | null;
   treat: TreatState | null;
 }
@@ -44,3 +45,4 @@ export type WorldServerMessage =
   | { type: "petting"; instanceId: string; affection: number };
 
 export const WORLD_PORT_NAME = "chrome-pet:world";
+export const SIT_TAIL_CYCLE_SECONDS = 0.6;

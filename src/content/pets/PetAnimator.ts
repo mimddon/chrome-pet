@@ -1,6 +1,7 @@
 
 import type { PetAnimation, PetState } from "../../shared/petTypes";
 import { getPetImageUrl } from "../../shared/petConfig";
+import { SIT_TAIL_CYCLE_SECONDS } from "../../shared/worldTypes";
 import { Pet } from "./Pet";
 import { PetRenderer } from "./PetRenderer";
 
@@ -14,6 +15,7 @@ export class PetAnimator {
   private currentAnimation: PetAnimation = "idle";
   private currentFrame = 0;
   private elapsedTime = 0;
+  private readonly tailFrames: string[];
 
   private readonly animations: Record<
     PetAnimation,
@@ -28,6 +30,12 @@ export class PetAnimator {
     const walkFrames = [1, 2, 3, 4].map((frame) =>
       chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/walk-${frame}.png`),
     );
+    const sitFrames = [1, 2, 3, 4].map((frame) =>
+      chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/sit-${frame}.png`),
+    );
+    this.tailFrames = ["sit-4", "sit-tail-left", "sit-4", "sit-tail-right", "sit-4"].map((frame) =>
+      chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/${frame}.png`),
+    );
 
     this.animations = {
       idle: {
@@ -41,8 +49,8 @@ export class PetAnimator {
         loop: true,
       },
       sit: {
-        frames: [getPetImageUrl(config, "idle")],
-        frameDuration: 300,
+        frames: sitFrames,
+        frameDuration: 200,
         loop: false,
       },
       jump: {
@@ -115,7 +123,7 @@ export class PetAnimator {
   }
 
   // 새로 열린 탭도 공유 월드의 같은 애니메이션 프레임부터 표시한다.
-  sync(elapsedTime: number): void {
+  sync(elapsedTime: number, tailWagTime: number | null = null): void {
     const nextAnimation = this.getAnimationForState(this.pet.getState());
     if (nextAnimation !== this.currentAnimation) this.play(nextAnimation);
     const animation = this.animations[this.currentAnimation];
@@ -123,7 +131,13 @@ export class PetAnimator {
     this.currentFrame = animation.loop
       ? frame % animation.frames.length
       : Math.min(frame, animation.frames.length - 1);
-    this.renderer.setImage(this.getCurrentFrameUrl());
+    if (this.currentAnimation === "sit" && this.currentFrame === animation.frames.length - 1 &&
+      tailWagTime !== null && Number.isFinite(tailWagTime)) {
+      const tailFrame = Math.floor(Math.max(0, tailWagTime) / SIT_TAIL_CYCLE_SECONDS * this.tailFrames.length);
+      this.renderer.setImage(this.tailFrames[tailFrame % this.tailFrames.length]!);
+    } else {
+      this.renderer.setImage(this.getCurrentFrameUrl());
+    }
   }
 
   // 특정 애니메이션 재생

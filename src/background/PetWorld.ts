@@ -1,4 +1,5 @@
 import type { PetWorldCommand, PetWorldSnapshot, ButterflyState, TreatState } from "../shared/worldTypes";
+import { SIT_TAIL_CYCLE_SECONDS } from "../shared/worldTypes";
 import type { PetDirection, PetState } from "../shared/petTypes";
 
 // 창 크기에 관계없이 같은 경로와 속도를 공유하는 가상 화면.
@@ -15,6 +16,10 @@ export class PetWorld {
   private direction: PetDirection = "right";
   private target: Point | null = null;
   private remainingTime = this.idleTime();
+  private sittingTime = 0;
+  private tailCheckTime = 0;
+  private tailWagTime: number | null = null;
+  private tailWagDuration = 0;
   private butterfly: ButterflyState | null = null;
   private catchTime = 0;
   private holder: string | null = null;
@@ -38,7 +43,8 @@ export class PetWorld {
   snapshot(): PetWorldSnapshot {
     const state = this.holder ? "idle"
       : this.target ? "walking"
-      : this.treat?.phase === "eating" || this.treat?.phase === "rewarding" ? "sitting" : "idle";
+      : this.sittingTime > 0 || this.treat?.phase === "eating" || this.treat?.phase === "rewarding"
+        ? "sitting" : "idle";
     if (state !== this.animationState) {
       this.animationState = state;
       this.animationStartedAt = this.elapsedTime;
@@ -50,6 +56,7 @@ export class PetWorld {
       direction: this.direction,
       state,
       animationTime: this.elapsedTime - this.animationStartedAt,
+      tailWagTime: this.sittingTime > 0 ? this.tailWagTime : null,
       butterfly: this.butterfly ? {
         ...this.butterfly,
         elapsedTime: this.elapsedTime - this.butterflyStartedAt,
@@ -67,6 +74,10 @@ export class PetWorld {
         if (!this.holder) {
           this.holder = owner;
           this.dragged = false;
+          if (this.sittingTime > 0) {
+            this.stopSitting();
+            this.remainingTime = this.idleTime();
+          }
         }
         break;
       case "drag":
@@ -83,6 +94,7 @@ export class PetWorld {
         break;
       case "placeTreat":
         if (this.holder || this.treat || !Number.isFinite(command.x) || !Number.isFinite(command.y)) return;
+        this.stopSitting();
         this.butterfly = null;
         this.catchTime = 0;
         this.target = { x: clamp(command.x) * WIDTH, y: clamp(command.y) * HEIGHT };
@@ -97,6 +109,7 @@ export class PetWorld {
         break;
       case "spawnButterfly": {
         if (this.holder || this.butterfly || this.treat) return;
+        this.stopSitting();
         const target = this.randomTarget(100, 250);
         this.target = target;
         this.butterflyStartedAt = this.elapsedTime;
@@ -143,6 +156,16 @@ export class PetWorld {
       }
       return null;
     }
+    if (this.sittingTime > 0) {
+      this.sittingTime = Math.max(0, this.sittingTime - delta);
+      if (this.sittingTime === 0) {
+        this.stopSitting();
+        this.remainingTime = this.idleTime();
+      } else {
+        this.updateTail(delta);
+      }
+      return null;
+    }
     if (this.butterfly?.phase === "caught") {
       this.catchTime -= delta;
       if (this.catchTime <= 0) this.butterfly = null;
@@ -176,6 +199,11 @@ export class PetWorld {
 
     this.remainingTime -= delta;
     if (this.remainingTime <= 0) {
+      if (Math.random() < 0.3) {
+        this.sittingTime = 10 + Math.random() * 10;
+        this.tailCheckTime = this.tailWaitTime();
+        return null;
+      }
       const target = this.randomTarget(80, 250);
       if (Math.hypot(target.x - this.x, target.y - this.y) >= 10) {
         this.target = target;
@@ -195,6 +223,37 @@ export class PetWorld {
       this.treat = null;
       this.remainingTime = this.idleTime();
     }
+  }
+
+  private updateTail(deltaTime: number): void {
+    if (this.tailWagTime !== null) {
+      this.tailWagTime += deltaTime;
+      if (this.tailWagTime >= this.tailWagDuration) {
+        this.tailWagTime = null;
+        this.tailCheckTime = this.tailWaitTime();
+      }
+      return;
+    }
+
+    this.tailCheckTime -= deltaTime;
+    if (this.tailCheckTime > 0) return;
+    if (Math.random() < 0.35) {
+      this.tailWagTime = 0;
+      this.tailWagDuration = (2 + Math.floor(Math.random() * 3)) * SIT_TAIL_CYCLE_SECONDS;
+    } else {
+      this.tailCheckTime = this.tailWaitTime();
+    }
+  }
+
+  private stopSitting(): void {
+    this.sittingTime = 0;
+    this.tailCheckTime = 0;
+    this.tailWagTime = null;
+    this.tailWagDuration = 0;
+  }
+
+  private tailWaitTime(): number {
+    return 4 + Math.random() * 3;
   }
 
   private randomTarget(min: number, max: number): Point {

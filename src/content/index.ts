@@ -109,7 +109,7 @@ function startPet(owned: OwnedPet): PetRuntime {
     );
     pet.setDirection(snapshot.direction);
     pet.setState(snapshot.state);
-    animator.sync(snapshot.animationTime);
+    animator.sync(snapshot.animationTime, snapshot.tailWagTime);
     butterfly.sync(snapshot.butterfly);
     treat.sync(snapshot.treat);
     renderer.render();
