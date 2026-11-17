@@ -397,16 +397,8 @@ export class PetRenderer {
   private showPettingEffect(affection: number): void {
     const rect = this.element.getBoundingClientRect();
 
-    let message = "♡ +1";
-
-    if (affection >= 900) {
-      message = "💗💗 +1";
-    } else if (affection >= 80) {
-      message = "쓰담쓰담 ♡ +1";
-    }
-
     const effect = document.createElement("div");
-    effect.textContent = message;
+    effect.textContent = "♡ +1";
 
     Object.assign(effect.style, {
       position: "fixed",
