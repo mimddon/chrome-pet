@@ -1,6 +1,6 @@
 import { Pet } from "./Pet";
 import { getPetImageUrl } from "../../shared/petConfig";
-import { getOwnedPet, increasePetAffection } from "../../storage/petStorage";
+import { increasePetAffection, type OwnedPet } from "../../storage/petStorage";
 import type {
   PetFeature,
   PetFeatureId,
@@ -35,9 +35,6 @@ export class PetRenderer {
   private dragSession: DragSession | null = null;
   private suppressClick = false;
   private acceptedClicks = 0;
-
-  // 오래된 애정도 조회 결과가 최신 값을 덮어쓰지 않도록 관리
-  private affectionVersion = 0;
 
   private readonly onDocumentPointerDown = (event: PointerEvent): void => {
     if (this.contextMenu && !this.contextMenu.contains(event.target as Node)) {
@@ -128,9 +125,11 @@ export class PetRenderer {
     private readonly interaction: {
       onGrab: () => void;
       onDragStart: () => void;
+      onDragMove: (x: number, y: number) => void;
       onRelease: (dragged: boolean) => void;
     },
     private readonly features: readonly PetFeature[],
+    private ownedPet: OwnedPet,
   ) {
     this.container = container;
 
@@ -237,7 +236,7 @@ export class PetRenderer {
 
     const maxX = Math.max(0, window.innerWidth - this.pet.config.size);
     const maxY = Math.max(0, window.innerHeight - this.pet.config.size);
-    this.pet.setPosition(
+    this.interaction.onDragMove(
       Math.max(0, Math.min(event.clientX - session.offsetX, maxX)),
       Math.max(0, Math.min(event.clientY - session.offsetY, maxY)),
     );
@@ -323,16 +322,20 @@ export class PetRenderer {
   }
 
   private getPetName(): string {
-    const { species, skin } = this.pet.config;
+    return this.ownedPet.name;
+  }
 
-    const names: Record<string, string> = {
-      "cat/basic": "기본 고양이",
-      "cat/black": "검은 고양이",
-      "cat/white": "흰 고양이",
-      "dog/basic": "기본 강아지",
-    };
+  syncOwnedPet(owned: OwnedPet): void {
+    if (this.destroyed || owned.instanceId !== this.ownedPet.instanceId ||
+      owned.revision < this.ownedPet.revision) return;
+    this.ownedPet = owned;
+    this.updateAffectionDisplay(owned.affection);
+  }
 
-    return names[`${species}/${skin}`] ?? `${species} / ${skin}`;
+  showPettingReaction(affection: number): void {
+    if (this.destroyed) return;
+    this.playPettingAnimation(affection);
+    this.showPettingEffect(affection);
   }
 
   // ========================================
@@ -354,21 +357,14 @@ export class PetRenderer {
     this.pettingInProgress = true;
 
     try {
-      const affection = await increasePetAffection(1);
+      const owned = await increasePetAffection(this.ownedPet.instanceId);
 
       if (this.destroyed) return;
 
       this.lastPettingAt = Date.now();
 
-      // 최신 애정도 버전 증가
-      this.affectionVersion++;
-
-      // 상태창이 열려 있다면 즉시 갱신
-      this.updateAffectionDisplay(affection);
-
-      // 쓰다듬기 반응
-      this.playPettingAnimation(affection);
-      this.showPettingEffect(affection);
+      this.syncOwnedPet(owned);
+      // 반응 연출은 백그라운드 이벤트를 통해 모든 탭에서 재생한다.
     } catch (error) {
       console.error("[Chrome Pet] 쓰다듬기 실패", error);
     } finally {
@@ -597,7 +593,7 @@ export class PetRenderer {
 
     // 애정도 표시
     const affectionText = document.createElement("p");
-    affectionText.textContent = "💗 애정도 불러오는 중...";
+    affectionText.textContent = `💗 애정도 ${this.ownedPet.affection.toLocaleString()}`;
 
     affectionText.style.cssText = `
       font-size:16px;
@@ -654,41 +650,6 @@ export class PetRenderer {
 
     this.container.appendChild(panel);
 
-    // 조회를 시작한 시점의 버전 저장
-    const requestVersion = this.affectionVersion;
-
-    // 현재 저장된 애정도 조회
-    void getOwnedPet()
-      .then((owned) => {
-        if (
-          !panel.isConnected ||
-          this.destroyed ||
-          this.statusPanel !== panel
-        ) {
-          return;
-        }
-
-        // 조회 도중 쓰다듬기가 발생했다면
-        // 오래된 결과로 화면을 덮어쓰지 않음
-        if (requestVersion !== this.affectionVersion) {
-          return;
-        }
-
-        const affection = owned?.affection ?? 0;
-
-        this.updateAffectionDisplay(affection);
-      })
-      .catch((error) => {
-        console.error("[Chrome Pet] 애정도 조회 실패", error);
-
-        if (
-          panel.isConnected &&
-          this.statusPanel === panel &&
-          requestVersion === this.affectionVersion
-        ) {
-          affectionText.textContent = "애정도를 불러오지 못했습니다.";
-        }
-      });
   }
 
   // ========================================

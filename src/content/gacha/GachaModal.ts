@@ -8,6 +8,7 @@ import { getPetImageUrl } from "../../shared/petConfig";
 import {
   saveOwnedPet,
   replaceOwnedPet,
+  watchOwnedPet,
   type OwnedPet,
 } from "../../storage/petStorage";
 import { GACHA_STYLES } from "./gachaStyles";
@@ -23,10 +24,12 @@ export function showGachaModal(
 
 export function showGachaModal(
   mode: "reroll",
+  instanceId: string,
 ): Promise<OwnedPet | null>;
 
 export function showGachaModal(
   mode: GachaMode = "first",
+  instanceId?: string,
 ): Promise<OwnedPet | null> {
   const existingModal = document.getElementById(
     "chrome-pet-gacha-root",
@@ -145,14 +148,21 @@ export function showGachaModal(
     let finished = false;
     let selectedPet: PetPoolEntry | null = null;
     let revealed = false;
+    let unsubscribe = (): void => {};
 
     const finish = (pet: OwnedPet | null): void => {
       if (finished) return;
 
       finished = true;
+      unsubscribe();
       host.remove();
       resolve(pet);
     };
+
+    // 다른 탭에서 먼저 확정한 경우 이 탭의 뽑기도 닫고 같은 펫을 사용한다.
+    unsubscribe = watchOwnedPet((pet) => {
+      if (pet && (!isReroll || pet.instanceId !== instanceId)) finish(pet);
+    });
 
     // 취소하면 기존 펫 유지
     cancelButton?.addEventListener("click", () => {
@@ -175,7 +185,7 @@ export function showGachaModal(
 
           // 저장은 확정 버튼을 누를 때만 실행
           const owned = isReroll
-            ? await replaceOwnedPet(selectedPet)
+            ? await replaceOwnedPet(selectedPet, instanceId!)
             : await saveOwnedPet(selectedPet);
 
           finish(owned);
@@ -231,6 +241,7 @@ export function showGachaModal(
           cancelButton.disabled = false;
         }
       } catch (error) {
+        if (finished) return;
         console.error("[Chrome Pet] 펫 뽑기 실패", error);
 
         if (revealed) {

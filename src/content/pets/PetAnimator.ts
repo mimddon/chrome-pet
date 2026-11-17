@@ -112,6 +112,18 @@ export class PetAnimator {
     this.renderer.setImage(this.getCurrentFrameUrl());
   }
 
+  // 새로 열린 탭도 공유 월드의 같은 애니메이션 프레임부터 표시한다.
+  sync(elapsedTime: number): void {
+    const nextAnimation = this.getAnimationForState(this.pet.getState());
+    if (nextAnimation !== this.currentAnimation) this.play(nextAnimation);
+    const animation = this.animations[this.currentAnimation];
+    const frame = Math.floor(Math.max(0, elapsedTime) * 1000 / animation.frameDuration);
+    this.currentFrame = animation.loop
+      ? frame % animation.frames.length
+      : Math.min(frame, animation.frames.length - 1);
+    this.renderer.setImage(this.getCurrentFrameUrl());
+  }
+
   // 특정 애니메이션 재생
   play(animation: PetAnimation): void {
     if (this.currentAnimation === animation) return;

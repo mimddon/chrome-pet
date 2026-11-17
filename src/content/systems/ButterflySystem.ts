@@ -1,14 +1,14 @@
 
 import { Pet } from "../pets/Pet";
-import { BehaviorSystem } from "./BehaviorSystem";
+import type { ButterflyState } from "../../shared/worldTypes";
 
 export class ButterflySystem {
   private butterfly: HTMLDivElement | null = null;
   private flyingAnimation: Animation | null = null;
 
   private readonly butterflySize = 32;
-  private readonly minDistance = 100;
-  private readonly maxDistance = 250;
+  private butterflyId: string | null = null;
+  private lastCaughtId: string | null = null;
 
   // 성공 이펙트 중 중복 소환 방지
   private catching = false;
@@ -18,76 +18,47 @@ export class ButterflySystem {
 
   constructor(
     private readonly pet: Pet,
-    private readonly behavior: BehaviorSystem,
     private readonly container: HTMLElement,
   ) {}
 
-  // 나비 생성
-  spawn(): void {
-    if (this.butterfly || this.catching || this.destroyed) {
+  // 위치와 잡기 판정은 공유 월드에서 받고 여기서는 연출만 재생한다.
+  sync(state: ButterflyState | null): void {
+    if (this.destroyed) return;
+    if (!state) {
+      this.removeButterfly();
+      this.catching = false;
       return;
     }
-
-    const position = this.pet.getPosition();
+    if (state.id === this.lastCaughtId) return;
     const petSize = this.pet.config.size;
+    const x = state.x * Math.max(0, window.innerWidth - petSize);
+    const y = state.y * Math.max(0, window.innerHeight - petSize);
+    if (this.butterflyId !== state.id) {
+      this.removeButterfly();
+      this.catching = false;
+      this.butterflyId = state.id;
+      this.createButterfly();
+    }
+    if (this.butterfly) {
+      this.butterfly.style.left = `${Math.max(0, Math.min(x + petSize / 2 - this.butterflySize / 2, window.innerWidth - this.butterflySize))}px`;
+      this.butterfly.style.top = `${Math.max(0, Math.min(y + petSize / 2 - this.butterflySize / 2, window.innerHeight - this.butterflySize))}px`;
+    }
+    if (state.phase === "caught") {
+      this.lastCaughtId = state.id;
+      this.catchButterfly(state.elapsedTime * 1000);
+    } else if (this.flyingAnimation) {
+      this.flyingAnimation.currentTime = state.elapsedTime * 1000;
+    }
+  }
 
-    const maxPetX = Math.max(
-      0,
-      window.innerWidth - petSize,
-    );
-
-    const maxPetY = Math.max(
-      0,
-      window.innerHeight - petSize,
-    );
-
-    // 나비 생성 방향 및 거리
-    const angle = Math.random() * Math.PI * 2;
-
-    const distance =
-      this.minDistance +
-      Math.random() *
-        (this.maxDistance - this.minDistance);
-
-    const targetX = Math.max(
-      0,
-      Math.min(
-        position.x + Math.cos(angle) * distance,
-        maxPetX,
-      ),
-    );
-
-    const targetY = Math.max(
-      0,
-      Math.min(
-        position.y + Math.sin(angle) * distance,
-        maxPetY,
-      ),
-    );
-
-    const butterflyX = Math.max(
-      0,
-      Math.min(
-        targetX + petSize / 2 - this.butterflySize / 2,
-        window.innerWidth - this.butterflySize,
-      ),
-    );
-
-    const butterflyY = Math.max(
-      0,
-      Math.min(
-        targetY + petSize / 2 - this.butterflySize / 2,
-        window.innerHeight - this.butterflySize,
-      ),
-    );
-
+  private createButterfly(): void {
     const butterfly = document.createElement("div");
     butterfly.textContent = "🦋";
 
     Object.assign(butterfly.style, {
       position: "fixed",
-      left: `${butterflyX}px`,
-      top: `${butterflyY}px`,
+      left: "0",
+      top: "0",
       width: `${this.butterflySize}px`,
       height: `${this.butterflySize}px`,
       lineHeight: `${this.butterflySize}px`,
@@ -124,16 +95,10 @@ export class ButterflySystem {
       },
     );
 
-    // 나비 위치로 이동
-    this.behavior.chase(
-      targetX,
-      targetY,
-      () => this.catchButterfly(),
-    );
   }
 
   // 나비 잡기 성공
-  private catchButterfly(): void {
+  private catchButterfly(elapsedTime: number): void {
     if (!this.butterfly || this.catching || this.destroyed) {
       return;
     }
@@ -169,12 +134,13 @@ export class ButterflySystem {
         fill: "forwards",
       },
     );
+    vanish.currentTime = Math.min(350, elapsedTime);
 
     // 별 이펙트
-    this.showSparkles(centerX, centerY);
+    this.showSparkles(centerX, centerY, elapsedTime);
 
     // Catch! 메시지
-    this.showSuccessMessage(centerX, centerY - 30);
+    this.showSuccessMessage(centerX, centerY - 30, elapsedTime);
 
     console.log("[Chrome Pet] Catch!");
 
@@ -192,6 +158,7 @@ export class ButterflySystem {
   private showSparkles(
     centerX: number,
     centerY: number,
+    elapsedTime: number,
   ): void {
     const sparkleCount = 8;
 
@@ -199,7 +166,7 @@ export class ButterflySystem {
       const angle =
         (Math.PI * 2 * i) / sparkleCount;
 
-      const distance = 35 + Math.random() * 25;
+      const distance = 35 + (i * 17) % 25;
 
       const dx = Math.cos(angle) * distance;
       const dy = Math.sin(angle) * distance;
@@ -213,7 +180,7 @@ export class ButterflySystem {
         left: `${centerX}px`,
         top: `${centerY}px`,
         color: i % 2 === 0 ? "#ffe17b" : "#ffffff",
-        fontSize: `${14 + Math.random() * 10}px`,
+        fontSize: `${14 + (i * 7) % 10}px`,
         fontWeight: "bold",
         pointerEvents: "none",
         userSelect: "none",
@@ -249,6 +216,7 @@ export class ButterflySystem {
           fill: "forwards",
         },
       );
+      animation.currentTime = elapsedTime;
 
       void animation.finished
         .catch(() => undefined)
@@ -263,6 +231,7 @@ export class ButterflySystem {
   private showSuccessMessage(
     x: number,
     y: number,
+    elapsedTime: number,
   ): void {
     const message = document.createElement("div");
 
@@ -316,6 +285,7 @@ export class ButterflySystem {
         fill: "forwards",
       },
     );
+    animation.currentTime = elapsedTime;
 
     void animation.finished
       .catch(() => undefined)
@@ -333,10 +303,10 @@ export class ButterflySystem {
     this.butterfly?.getAnimations().forEach((animation) => animation.cancel());
     this.butterfly?.remove();
     this.butterfly = null;
+    this.butterflyId = null;
   }
 
   cancel(): void {
-    this.behavior.cancelChase();
     this.removeButterfly();
     this.catching = false;
 
