@@ -3,6 +3,8 @@ export type PetFeatureId =
   | "openPetStatus"
   | "openPetSettings"
   | "spawnButterfly"
+  | "giveTreat"
+  | "cancelGiveTreat"
   | "enablePet"
   | "disablePet"
   | "rerollPet";
@@ -17,6 +19,7 @@ export type PetFeature = {
   displayIn: readonly PetFeatureLocation[];
   triggers: readonly PetFeatureTrigger[];
   execute: PetFeatureHandler;
+  isVisible?: () => boolean;
 };
 
 export type PetFeatureRequest = {

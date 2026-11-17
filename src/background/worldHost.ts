@@ -5,7 +5,7 @@ import { watchPetEnabled } from "../storage/petVisibility";
 
 const WORLD_STORAGE_KEY = "chromePet.world";
 
-export function createWorldHost(): {
+export function createWorldHost(rewardTreat: (instanceId: string) => Promise<void>): {
   setPet: (pet: OwnedPet) => void;
   notifyPetting: (pet: OwnedPet) => void;
 } {
@@ -48,8 +48,24 @@ export function createWorldHost(): {
       lastTime = performance.now();
       timer = setInterval(() => {
         const now = performance.now();
-        world?.update((now - lastTime) / 1000);
+        const completedTreat = world?.update((now - lastTime) / 1000);
         lastTime = now;
+        if (completedTreat && world) {
+          const completedWorld = world;
+          const complete = (rewarded: boolean): void => {
+            if (world !== completedWorld) return;
+            completedWorld.finishTreat(completedTreat, rewarded);
+            broadcast();
+            persist();
+          };
+          void rewardTreat(completedWorld.instanceId).then(
+            () => complete(true),
+            (error: unknown) => {
+              console.error("[Chrome Pet] 간식 보상 저장 실패", error);
+              complete(false);
+            },
+          );
+        }
         broadcast();
         if (now - lastSave >= 2000) {
           lastSave = now;
@@ -117,7 +133,7 @@ export function createWorldHost(): {
         broadcast();
       } else if (message.type === "command" && petEnabled && client.visible &&
         message.instanceId === world?.instanceId && message.command &&
-        ["hold", "drag", "release", "spawnButterfly"].includes(message.command.action)) {
+        ["hold", "drag", "release", "spawnButterfly", "placeTreat"].includes(message.command.action)) {
         world.command(client.id, message.command);
         broadcast();
         if (message.command.action !== "drag") persist();

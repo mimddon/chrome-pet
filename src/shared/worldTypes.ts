@@ -16,12 +16,22 @@ export interface PetWorldSnapshot {
   state: PetState;
   animationTime: number;
   butterfly: ButterflyState | null;
+  treat: TreatState | null;
+}
+
+export interface TreatState {
+  id: string;
+  x: number;
+  y: number;
+  phase: "approaching" | "eating" | "rewarding" | "happy";
+  elapsedTime: number;
 }
 
 export type PetWorldCommand =
   | { action: "hold" }
   | { action: "drag"; x: number; y: number }
   | { action: "release" }
+  | { action: "placeTreat"; x: number; y: number }
   | { action: "spawnButterfly" };
 
 export type WorldClientMessage =

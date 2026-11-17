@@ -7,6 +7,7 @@ import { PetRenderer } from "./pets/PetRenderer";
 import { PetAnimator } from "./pets/PetAnimator";
 import { GameLoop } from "./systems/GameLoop";
 import { ButterflySystem } from "./systems/ButterflySystem";
+import { TreatSystem } from "./systems/TreatSystem";
 import { WorldConnection } from "./systems/WorldConnection";
 import { PetSettings } from "./ui/PetSettings";
 import { createPetFeatures } from "../shared/features";
@@ -60,6 +61,9 @@ function startPet(owned: OwnedPet): PetRuntime {
     y: Math.max(0, window.innerHeight - petConfig.size - 20),
   });
   const butterfly = new ButterflySystem(pet, container);
+  const treat = new TreatSystem(pet, container, (x, y) => {
+    world.command(owned.instanceId, { action: "placeTreat", x, y });
+  }, () => renderer.closeContextMenu());
   const features = createPetFeatures({
     petting: () => renderer.handlePetting(),
     openPetStatus: () => renderer.showStatusPanel(),
@@ -67,13 +71,25 @@ function startPet(owned: OwnedPet): PetRuntime {
     spawnButterfly: () => {
       if (!gachaInProgress) world.command(owned.instanceId, { action: "spawnButterfly" });
     },
-    rerollPet: () => settings.confirmReroll(),
+    giveTreat: () => treat.startPlacement(),
+    cancelGiveTreat: () => treat.cancelPlacement(),
+    rerollPet: () => {
+      treat.cancelPlacement();
+      settings.confirmReroll();
+    },
     disablePet: () => setPetEnabled(false),
+  }, {
+    giveTreat: () => !gachaInProgress && !treat.isPlacing && !treat.hasTreat,
+    cancelGiveTreat: () => treat.isPlacing,
+    spawnButterfly: () => !treat.isPlacing && !treat.hasTreat,
   });
   const rerollFeature = features.find((feature) => feature.id === "rerollPet")!;
   const settings = new PetSettings(rerollFeature, () => { void drawPet("reroll"); });
   const renderer = new PetRenderer(pet, container, {
-    onGrab: () => world.command(owned.instanceId, { action: "hold" }),
+    onGrab: () => {
+      treat.cancelPlacement();
+      world.command(owned.instanceId, { action: "hold" });
+    },
     onDragStart: () => {},
     onDragMove: (x, y) => world.command(owned.instanceId, {
       action: "drag",
@@ -95,6 +111,7 @@ function startPet(owned: OwnedPet): PetRuntime {
     pet.setState(snapshot.state);
     animator.sync(snapshot.animationTime);
     butterfly.sync(snapshot.butterfly);
+    treat.sync(snapshot.treat);
     renderer.render();
   };
   window.addEventListener("resize", applyPosition);
@@ -116,6 +133,7 @@ function startPet(owned: OwnedPet): PetRuntime {
     destroy() {
       gameLoop.stop();
       window.removeEventListener("resize", applyPosition);
+      treat.destroy();
       renderer.destroy();
       settings.destroy();
       butterfly.destroy();

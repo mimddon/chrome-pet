@@ -1,4 +1,4 @@
-import type { PetWorldCommand, PetWorldSnapshot, ButterflyState } from "../shared/worldTypes";
+import type { PetWorldCommand, PetWorldSnapshot, ButterflyState, TreatState } from "../shared/worldTypes";
 import type { PetDirection, PetState } from "../shared/petTypes";
 
 // 창 크기에 관계없이 같은 경로와 속도를 공유하는 가상 화면.
@@ -23,6 +23,8 @@ export class PetWorld {
   private animationState: PetState = "idle";
   private animationStartedAt = 0;
   private butterflyStartedAt = 0;
+  private treat: TreatState | null = null;
+  private treatStartedAt = 0;
 
   constructor(readonly instanceId: string, saved?: PetWorldSnapshot) {
     if (saved?.instanceId === instanceId &&
@@ -34,7 +36,9 @@ export class PetWorld {
   }
 
   snapshot(): PetWorldSnapshot {
-    const state = !this.holder && this.target ? "walking" : "idle";
+    const state = this.holder ? "idle"
+      : this.target ? "walking"
+      : this.treat?.phase === "eating" || this.treat?.phase === "rewarding" ? "sitting" : "idle";
     if (state !== this.animationState) {
       this.animationState = state;
       this.animationStartedAt = this.elapsedTime;
@@ -49,6 +53,10 @@ export class PetWorld {
       butterfly: this.butterfly ? {
         ...this.butterfly,
         elapsedTime: this.elapsedTime - this.butterflyStartedAt,
+      } : null,
+      treat: this.treat ? {
+        ...this.treat,
+        elapsedTime: this.elapsedTime - this.treatStartedAt,
       } : null,
     };
   }
@@ -66,14 +74,29 @@ export class PetWorld {
         this.dragged = true;
         this.target = null;
         this.butterfly = null;
+        this.treat = null;
         this.x = clamp(command.x) * WIDTH;
         this.y = clamp(command.y) * HEIGHT;
         break;
       case "release":
         this.release(owner);
         break;
+      case "placeTreat":
+        if (this.holder || this.treat || !Number.isFinite(command.x) || !Number.isFinite(command.y)) return;
+        this.butterfly = null;
+        this.catchTime = 0;
+        this.target = { x: clamp(command.x) * WIDTH, y: clamp(command.y) * HEIGHT };
+        this.treatStartedAt = this.elapsedTime;
+        this.treat = {
+          id: crypto.randomUUID(),
+          x: this.target.x / WIDTH,
+          y: this.target.y / HEIGHT,
+          phase: "approaching",
+          elapsedTime: 0,
+        };
+        break;
       case "spawnButterfly": {
-        if (this.holder || this.butterfly) return;
+        if (this.holder || this.butterfly || this.treat) return;
         const target = this.randomTarget(100, 250);
         this.target = target;
         this.butterflyStartedAt = this.elapsedTime;
@@ -99,10 +122,27 @@ export class PetWorld {
     this.dragged = false;
   }
 
-  update(deltaTime: number): void {
+  // 먹기가 끝나는 프레임에만 간식 ID를 반환해 보상을 한 번 요청한다.
+  update(deltaTime: number): string | null {
     const delta = Math.max(0, Math.min(deltaTime, 0.05));
     this.elapsedTime += delta;
-    if (this.holder) return;
+    if (this.holder) {
+      if (this.treat) this.treatStartedAt += delta;
+      return null;
+    }
+    if (this.treat && this.treat.phase !== "approaching") {
+      const elapsed = this.elapsedTime - this.treatStartedAt;
+      if (this.treat.phase === "eating" && elapsed >= 0.9) {
+        this.treat.phase = "rewarding";
+        this.treatStartedAt = this.elapsedTime;
+        return this.treat.id;
+      }
+      if (this.treat.phase === "happy" && elapsed >= 1.1) {
+        this.treat = null;
+        this.remainingTime = this.idleTime();
+      }
+      return null;
+    }
     if (this.butterfly?.phase === "caught") {
       this.catchTime -= delta;
       if (this.catchTime <= 0) this.butterfly = null;
@@ -126,8 +166,12 @@ export class PetWorld {
           this.butterflyStartedAt = this.elapsedTime;
           this.catchTime = 0.35;
         }
+        if (this.treat?.phase === "approaching") {
+          this.treat.phase = "eating";
+          this.treatStartedAt = this.elapsedTime;
+        }
       }
-      return;
+      return null;
     }
 
     this.remainingTime -= delta;
@@ -138,6 +182,18 @@ export class PetWorld {
       } else {
         this.remainingTime = this.idleTime();
       }
+    }
+    return null;
+  }
+
+  finishTreat(id: string, rewarded: boolean): void {
+    if (this.treat?.id !== id || this.treat.phase !== "rewarding") return;
+    if (rewarded) {
+      this.treat.phase = "happy";
+      this.treatStartedAt = this.elapsedTime;
+    } else {
+      this.treat = null;
+      this.remainingTime = this.idleTime();
     }
   }
 

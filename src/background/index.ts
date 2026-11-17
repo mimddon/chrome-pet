@@ -4,7 +4,9 @@ import { createWorldHost } from "./worldHost";
 import { parseOwnedPet } from "../storage/petState";
 
 const store = createChromePetStore();
-const worldHost = createWorldHost();
+const worldHost = createWorldHost(async (instanceId): Promise<void> => {
+  await mutatePet({ type: "chrome-pet:mutate", action: "pet", instanceId, amount: 3 });
+});
 const mutatePet = createPetService({
   read: store.read,
   async write(pet) {

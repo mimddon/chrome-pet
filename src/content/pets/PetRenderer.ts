@@ -294,7 +294,7 @@ export class PetRenderer {
   private async executeFeature(id: PetFeatureId): Promise<void> {
     if (this.destroyed) return;
     const feature = this.features.find((feature) => feature.id === id);
-    if (!feature) return;
+    if (!feature || feature.isVisible?.() === false) return;
 
     try {
       await feature.execute();
@@ -474,7 +474,9 @@ export class PetRenderer {
       pointerEvents: "auto",
     });
 
-    const items = this.features.filter((feature) => feature.displayIn.includes("petContextMenu"));
+    const items = this.features.filter((feature) =>
+      feature.displayIn.includes("petContextMenu") && feature.isVisible?.() !== false,
+    );
     const icons: Partial<Record<PetFeatureId, string>> = {
       petting: "🐾",
       openPetStatus: "📊",
@@ -505,6 +507,16 @@ export class PetRenderer {
         fontSize: "13px",
         fontFamily: "inherit",
       });
+
+      if (item.id === "giveTreat" || item.id === "cancelGiveTreat") {
+        const icon = document.createElement("img");
+        icon.src = chrome.runtime.getURL("assets/treats/kibble.svg");
+        icon.alt = "";
+        icon.draggable = false;
+        icon.setAttribute("aria-hidden", "true");
+        icon.style.cssText = "display:inline-block;width:16px;height:16px;vertical-align:-3px;margin-right:6px;pointer-events:none;user-select:none;";
+        button.prepend(icon);
+      }
 
       if (item.id === "disablePet") {
         const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -678,7 +690,7 @@ export class PetRenderer {
   // 정리
   // ========================================
 
-  private closeContextMenu(): void {
+  closeContextMenu(): void {
     document.removeEventListener(
       "pointerdown",
       this.onDocumentPointerDown,
