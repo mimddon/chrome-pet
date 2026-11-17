@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chrome Pet",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "웹페이지에서 함께 생활하는 2D 픽셀 고양이",
   "permissions": ["storage"],
   "background": {

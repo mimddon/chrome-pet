@@ -1,6 +1,6 @@
 {
   "name": "chrome-pet",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "크롬 확장프로그램용 펫 키우기 프로젝트",
   "main": "index.js",
   "scripts": {
