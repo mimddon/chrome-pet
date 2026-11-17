@@ -8,6 +8,7 @@ export class BehaviorSystem {
   private state: BehaviorState = "idle";
   private remainingTime = 0;
   private chaseCallback: (() => void) | null = null;
+  private paused = false;
 
   private readonly minIdleTime = 2;
   private readonly maxIdleTime = 6;
@@ -23,6 +24,8 @@ export class BehaviorSystem {
   }
 
   update(deltaTime: number): void {
+    if (this.paused) return;
+
     // 나비 추적 중
     if (this.state === "chasing") {
       this.movement.update(this.pet, deltaTime);
@@ -54,6 +57,22 @@ export class BehaviorSystem {
 
     if (this.remainingTime <= 0) {
       this.startWalk();
+    }
+  }
+
+  pause(): void {
+    this.paused = true;
+    this.pet.stop();
+  }
+
+  resume(resetToIdle = false): void {
+    this.paused = false;
+
+    if (resetToIdle) {
+      this.chaseCallback = null;
+      this.startIdle();
+    } else {
+      this.pet.setState(this.state === "idle" ? "idle" : "walking");
     }
   }
 

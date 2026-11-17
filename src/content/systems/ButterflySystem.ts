@@ -181,7 +181,7 @@ export class ButterflySystem {
     void vanish.finished
       .catch(() => undefined)
       .then(() => {
-        if (this.destroyed) return;
+        if (this.destroyed || this.butterfly !== butterfly) return;
 
         this.removeButterfly();
         this.catching = false;
@@ -330,21 +330,27 @@ export class ButterflySystem {
     this.flyingAnimation?.cancel();
     this.flyingAnimation = null;
 
+    this.butterfly?.getAnimations().forEach((animation) => animation.cancel());
     this.butterfly?.remove();
     this.butterfly = null;
+  }
+
+  cancel(): void {
+    this.behavior.cancelChase();
+    this.removeButterfly();
+    this.catching = false;
+
+    for (const effect of this.effects) {
+      effect.getAnimations().forEach((animation) => animation.cancel());
+      effect.remove();
+    }
+
+    this.effects.clear();
   }
 
   // 펫 제거 시 정리
   destroy(): void {
     this.destroyed = true;
-
-    this.behavior.cancelChase();
-    this.removeButterfly();
-
-    for (const effect of this.effects) {
-      effect.remove();
-    }
-
-    this.effects.clear();
+    this.cancel();
   }
 }

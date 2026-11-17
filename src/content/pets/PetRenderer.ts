@@ -3,6 +3,18 @@ import { getPetImageUrl } from "../../shared/petConfig";
 import { getOwnedPet, increasePetAffection } from "../../storage/petStorage";
 import { PetSettings } from "../ui/PetSettings";
 
+type DragSession = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  pointerX: number;
+  pointerY: number;
+  offsetX: number;
+  offsetY: number;
+  grabbed: boolean;
+  dragging: boolean;
+};
+
 export class PetRenderer {
   private readonly element: HTMLImageElement;
   private readonly container: HTMLElement;
@@ -15,6 +27,11 @@ export class PetRenderer {
   private lastPettingAt = 0;
   private pettingInProgress = false;
   private destroyed = false;
+  private clickTimer: ReturnType<typeof setTimeout> | null = null;
+  private grabTimer: ReturnType<typeof setTimeout> | null = null;
+  private dragSession: DragSession | null = null;
+  private suppressClick = false;
+  private acceptedClicks = 0;
 
   // 오래된 애정도 조회 결과가 최신 값을 덮어쓰지 않도록 관리
   private affectionVersion = 0;
@@ -25,9 +42,91 @@ export class PetRenderer {
     }
   };
 
+  private readonly onPointerDown = (event: PointerEvent): void => {
+    if (this.destroyed || this.dragSession || !event.isPrimary || event.button !== 0) {
+      return;
+    }
+
+    this.element.setPointerCapture(event.pointerId);
+    event.stopPropagation();
+
+    const session: DragSession = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      offsetX: 0,
+      offsetY: 0,
+      grabbed: false,
+      dragging: false,
+    };
+    this.dragSession = session;
+    this.suppressClick = false;
+    this.grabTimer = setTimeout(() => {
+      this.grabTimer = null;
+      if (this.destroyed || this.dragSession !== session) return;
+
+      // The pet keeps walking during the hold, so anchor to its position now.
+      const position = this.pet.getPosition();
+      session.grabbed = true;
+      session.startX = session.pointerX;
+      session.startY = session.pointerY;
+      session.offsetX = session.pointerX - position.x;
+      session.offsetY = session.pointerY - position.y;
+      this.suppressClick = true;
+      this.acceptedClicks = 0;
+      this.clearClickTimer();
+      this.closeContextMenu();
+      this.element.style.cursor = "grabbing";
+      this.interaction.onGrab();
+    }, 300);
+
+    window.addEventListener("blur", this.onWindowBlur);
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+  };
+
+  private readonly onPointerMove = (event: PointerEvent): void => {
+    if (event.pointerId !== this.dragSession?.pointerId) return;
+    event.stopPropagation();
+
+    if ((event.buttons & 1) === 0) {
+      this.finishInteraction(true);
+      return;
+    }
+
+    this.updateDragPosition(event);
+  };
+
+  private readonly onPointerUp = (event: PointerEvent): void => {
+    if (event.pointerId !== this.dragSession?.pointerId) return;
+    event.stopPropagation();
+    this.updateDragPosition(event);
+    this.finishInteraction();
+  };
+
+  private readonly onPointerCancel = (event: PointerEvent): void => {
+    if (event.pointerId === this.dragSession?.pointerId) {
+      this.finishInteraction(true);
+    }
+  };
+
+  private readonly onWindowBlur = (): void => {
+    this.finishInteraction(true);
+  };
+
+  private readonly onVisibilityChange = (): void => {
+    if (document.hidden) this.finishInteraction(true);
+  };
+
   constructor(
     private readonly pet: Pet,
     container: HTMLElement,
+    private readonly interaction: {
+      onGrab: () => void;
+      onDragStart: () => void;
+      onRelease: (dragged: boolean) => void;
+    },
   ) {
     this.container = container;
 
@@ -55,8 +154,9 @@ export class PetRenderer {
       objectFit: "contain",
       imageRendering: "pixelated",
       pointerEvents: "auto",
-      cursor: "pointer",
+      cursor: "grab",
       userSelect: "none",
+      touchAction: "none",
       zIndex: "2147483647",
       left: "0",
       top: "0",
@@ -64,38 +164,43 @@ export class PetRenderer {
       willChange: "transform",
     });
 
+    this.element.addEventListener("pointerdown", this.onPointerDown);
+    this.element.addEventListener("pointermove", this.onPointerMove);
+    this.element.addEventListener("pointerup", this.onPointerUp);
+    this.element.addEventListener("pointercancel", this.onPointerCancel);
+    this.element.addEventListener("lostpointercapture", this.onPointerCancel);
+
     // 좌클릭 → 쓰다듬기
-    let clickTimer: ReturnType<typeof setTimeout> | null = null;
-
     this.element.addEventListener("click", (event) => {
-      if (event.detail >= 2) return;
-
-      if (clickTimer !== null) {
-        clearTimeout(clickTimer);
+      event.stopPropagation();
+      if (this.destroyed || (this.suppressClick && event.detail !== 0) || this.dragSession) {
+        this.acceptedClicks = 0;
+        event.preventDefault();
+        return;
       }
 
-      clickTimer = setTimeout(() => {
-        clickTimer = null;
+      // Count only real clicks; the browser's click count can include a drag.
+      if (event.detail <= 1) this.acceptedClicks = 0;
+      this.acceptedClicks++;
+      if (this.clickTimer !== null && this.acceptedClicks >= 2) {
+        this.handleDoubleClick();
+        return;
+      }
+
+      this.clearClickTimer();
+      this.clickTimer = setTimeout(() => {
+        this.clickTimer = null;
         void this.handlePetting();
       }, 250);
     });
 
-    // 더블클릭 → 나비 소환
+    // Preserve the OS double-click window even if the 250ms petting timer expired.
     this.element.addEventListener("dblclick", (event) => {
       event.preventDefault();
       event.stopPropagation();
-
-      if (clickTimer !== null) {
-        clearTimeout(clickTimer);
-        clickTimer = null;
+      if (!this.destroyed && !this.dragSession && !this.suppressClick && this.acceptedClicks >= 2) {
+        this.handleDoubleClick();
       }
-
-      this.element.dispatchEvent(
-        new CustomEvent("chrome-pet:butterfly", {
-          bubbles: true,
-          composed: true,
-        }),
-      );
     });
 
     // 우클릭 → 메뉴 열기
@@ -103,11 +208,93 @@ export class PetRenderer {
       event.preventDefault();
       event.stopPropagation();
 
+      if (this.destroyed || this.dragSession?.dragging) return;
+      this.finishInteraction(true);
       this.showContextMenu(event.clientX, event.clientY);
     });
 
     container.appendChild(this.element);
     this.render();
+  }
+
+  private updateDragPosition(event: PointerEvent): void {
+    const session = this.dragSession;
+    if (!session) return;
+
+    session.pointerX = event.clientX;
+    session.pointerY = event.clientY;
+    const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
+    if (!session.grabbed) {
+      if (distance >= 5) {
+        this.clearGrabTimer();
+        this.suppressClick = true;
+        this.acceptedClicks = 0;
+        this.clearClickTimer();
+      }
+      return;
+    }
+
+    if (!session.dragging) {
+      if (distance < 5) return;
+
+      session.dragging = true;
+      this.interaction.onDragStart();
+    }
+
+    const maxX = Math.max(0, window.innerWidth - this.pet.config.size);
+    const maxY = Math.max(0, window.innerHeight - this.pet.config.size);
+    this.pet.setPosition(
+      Math.max(0, Math.min(event.clientX - session.offsetX, maxX)),
+      Math.max(0, Math.min(event.clientY - session.offsetY, maxY)),
+    );
+  }
+
+  private finishInteraction(cancelled = false): void {
+    const session = this.dragSession;
+    if (!session) return;
+
+    this.clearGrabTimer();
+    this.dragSession = null;
+    if (cancelled) {
+      this.suppressClick = true;
+      this.acceptedClicks = 0;
+      this.clearClickTimer();
+    }
+
+    window.removeEventListener("blur", this.onWindowBlur);
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    if (this.element.hasPointerCapture(session.pointerId)) {
+      this.element.releasePointerCapture(session.pointerId);
+    }
+
+    this.element.style.cursor = "grab";
+    if (session.grabbed) this.interaction.onRelease(session.dragging);
+    this.render();
+  }
+
+  private clearGrabTimer(): void {
+    if (this.grabTimer !== null) {
+      clearTimeout(this.grabTimer);
+      this.grabTimer = null;
+    }
+  }
+
+  private clearClickTimer(): void {
+    if (this.clickTimer !== null) {
+      clearTimeout(this.clickTimer);
+      this.clickTimer = null;
+    }
+  }
+
+  private handleDoubleClick(): void {
+    this.clearClickTimer();
+    this.acceptedClicks = 0;
+    this.element.dispatchEvent(
+      new CustomEvent("chrome-pet:butterfly", {
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   // ========================================
@@ -146,7 +333,7 @@ export class PetRenderer {
   // ========================================
 
   private async handlePetting(): Promise<void> {
-    if (this.destroyed || this.pettingInProgress) {
+    if (this.destroyed || this.dragSession || this.pettingInProgress) {
       return;
     }
 
@@ -545,6 +732,13 @@ export class PetRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.finishInteraction(true);
+    this.clearClickTimer();
+    this.element.removeEventListener("pointerdown", this.onPointerDown);
+    this.element.removeEventListener("pointermove", this.onPointerMove);
+    this.element.removeEventListener("pointerup", this.onPointerUp);
+    this.element.removeEventListener("pointercancel", this.onPointerCancel);
+    this.element.removeEventListener("lostpointercapture", this.onPointerCancel);
 
     this.closeContextMenu();
 

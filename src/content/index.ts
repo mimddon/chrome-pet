@@ -59,8 +59,6 @@ function startPet(owned: OwnedPet): PetRuntime {
     y: initialY,
   });
 
-  const renderer = new PetRenderer(pet, container);
-  const animator = new PetAnimator(pet, renderer);
   const movement = new MovementSystem(80);
   const behavior = new BehaviorSystem(pet, movement);
 
@@ -70,6 +68,16 @@ function startPet(owned: OwnedPet): PetRuntime {
     behavior,
     container,
   );
+
+  const renderer = new PetRenderer(pet, container, {
+    onGrab: () => behavior.pause(),
+    onDragStart: () => {
+      butterfly.cancel();
+      movement.stop(pet);
+    },
+    onRelease: (dragged) => behavior.resume(dragged),
+  });
+  const animator = new PetAnimator(pet, renderer);
 
   const gameLoop = new GameLoop((deltaTime) => {
     behavior.update(deltaTime);
@@ -86,8 +94,8 @@ function startPet(owned: OwnedPet): PetRuntime {
 
     destroy() {
       gameLoop.stop();
-      butterfly.destroy();
       renderer.destroy();
+      butterfly.destroy();
       container.remove();
     },
   };
