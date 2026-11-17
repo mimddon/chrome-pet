@@ -1,0 +1,20 @@
+:root {
+  font-family: system-ui, "Malgun Gothic", sans-serif;
+  color: #fff;
+  background: #252837;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { width: 280px; margin: 0; padding: 16px; }
+header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+h1 { margin: 0; font-size: 17px; }
+button { font: inherit; cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+button:focus-visible { outline: 2px solid #d99c62; outline-offset: 3px; }
+#back { padding: 0; border: 0; background: transparent; color: #d99c62; font-size: 12px; }
+#menu { display: grid; gap: 8px; }
+#menu button { width: 100%; padding: 12px; border: 1px solid #414558; border-radius: 8px; background: #303344; color: #fff; text-align: left; }
+#menu button:hover:enabled { background: #3c4054; }
+#error { margin: 12px 0 0; color: #ffb4b4; font-size: 12px; line-height: 1.5; }
+[hidden] { display: none !important; }

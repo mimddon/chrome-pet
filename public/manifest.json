@@ -5,7 +5,8 @@
   "description": "웹페이지에서 함께 생활하는 2D 픽셀 고양이",
   "permissions": ["storage"],
   "action": {
-    "default_title": "Chrome Pet"
+    "default_title": "Chrome Pet",
+    "default_popup": "popup.html"
   },
   "content_scripts": [
     {

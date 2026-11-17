@@ -13,10 +13,13 @@ import { MovementSystem } from "./systems/MovementSystem";
 import { BehaviorSystem } from "./systems/BehaviorSystem";
 import { GameLoop } from "./systems/GameLoop";
 import { ButterflySystem } from "./systems/ButterflySystem";
+import { PetSettings } from "./ui/PetSettings";
+import { createPetFeatures } from "../shared/features";
+import type { PetFeatureHandler, PetFeatureRequest, PetFeatureResponse } from "../shared/features";
 
 type PetRuntime = {
   destroy: () => void;
-  spawnButterfly: () => void;
+  rerollPet: PetFeatureHandler;
 };
 
 let currentRuntime: PetRuntime | null = null;
@@ -69,6 +72,20 @@ function startPet(owned: OwnedPet): PetRuntime {
     container,
   );
 
+  const features = createPetFeatures({
+    petting: () => renderer.handlePetting(),
+    openPetStatus: () => renderer.showStatusPanel(),
+    openPetSettings: () => settings.open(),
+    spawnButterfly: () => {
+      if (!gachaInProgress) butterfly.spawn();
+    },
+    rerollPet: () => settings.confirmReroll(),
+  });
+  const rerollFeature = features.find((feature) => feature.id === "rerollPet")!;
+  const settings = new PetSettings(
+    rerollFeature,
+    () => { void drawReplacementPet(); },
+  );
   const renderer = new PetRenderer(pet, container, {
     onGrab: () => behavior.pause(),
     onDragStart: () => {
@@ -76,7 +93,7 @@ function startPet(owned: OwnedPet): PetRuntime {
       movement.stop(pet);
     },
     onRelease: (dragged) => behavior.resume(dragged),
-  });
+  }, features);
   const animator = new PetAnimator(pet, renderer);
 
   const gameLoop = new GameLoop((deltaTime) => {
@@ -88,13 +105,12 @@ function startPet(owned: OwnedPet): PetRuntime {
   gameLoop.start();
 
   return {
-    spawnButterfly() {
-      butterfly.spawn();
-    },
+    rerollPet: rerollFeature.execute,
 
     destroy() {
       gameLoop.stop();
       renderer.destroy();
+      settings.destroy();
       butterfly.destroy();
       container.remove();
     },
@@ -112,7 +128,7 @@ function replacePet(owned: OwnedPet): void {
 }
 
 // 다시 뽑기
-async function rerollPet(): Promise<void> {
+async function drawReplacementPet(): Promise<void> {
   if (gachaInProgress) return;
 
   gachaInProgress = true;
@@ -134,18 +150,6 @@ async function rerollPet(): Promise<void> {
     gachaInProgress = false;
   }
 }
-
-// 설정 → 다시 뽑기 이벤트
-document.addEventListener("chrome-pet:reroll", () => {
-  void rerollPet();
-});
-
-// 더블클릭 → 나비 소환 이벤트
-document.addEventListener("chrome-pet:butterfly", () => {
-  if (gachaInProgress) return;
-
-  currentRuntime?.spawnButterfly();
-});
 
 // 최초 실행
 async function main(): Promise<void> {
@@ -175,5 +179,22 @@ async function main(): Promise<void> {
     gachaInProgress = false;
   }
 }
+
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse: (response: PetFeatureResponse) => void) => {
+  if (sender.id !== chrome.runtime.id || !message || typeof message !== "object") return;
+  const request = message as Partial<PetFeatureRequest>;
+  if (request.type !== "chrome-pet:execute-feature" || request.featureId !== "rerollPet") return;
+
+  if (gachaInProgress || !currentRuntime) {
+    sendResponse({ ok: false, error: "펫을 준비 중입니다. 잠시 후 다시 시도해 주세요." });
+    return;
+  }
+
+  void Promise.resolve().then(currentRuntime.rerollPet).then(
+    () => sendResponse({ ok: true }),
+    () => sendResponse({ ok: false, error: "다시 뽑기 화면을 열지 못했습니다." }),
+  );
+  return true;
+});
 
 void main();

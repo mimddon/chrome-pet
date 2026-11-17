@@ -1,7 +1,11 @@
 import { Pet } from "./Pet";
 import { getPetImageUrl } from "../../shared/petConfig";
 import { getOwnedPet, increasePetAffection } from "../../storage/petStorage";
-import { PetSettings } from "../ui/PetSettings";
+import type {
+  PetFeature,
+  PetFeatureId,
+  PetFeatureTrigger,
+} from "../../shared/features";
 
 type DragSession = {
   pointerId: number;
@@ -18,7 +22,6 @@ type DragSession = {
 export class PetRenderer {
   private readonly element: HTMLImageElement;
   private readonly container: HTMLElement;
-  private readonly settings: PetSettings;
 
   private contextMenu: HTMLDivElement | null = null;
   private statusPanel: HTMLDivElement | null = null;
@@ -127,18 +130,9 @@ export class PetRenderer {
       onDragStart: () => void;
       onRelease: (dragged: boolean) => void;
     },
+    private readonly features: readonly PetFeature[],
   ) {
     this.container = container;
-
-    // 설정창 및 다시 뽑기 이벤트
-    this.settings = new PetSettings(() => {
-      this.element.dispatchEvent(
-        new CustomEvent("chrome-pet:reroll", {
-          bubbles: true,
-          composed: true,
-        }),
-      );
-    });
 
     // 펫 이미지 생성
     this.element = document.createElement("img");
@@ -190,7 +184,7 @@ export class PetRenderer {
       this.clearClickTimer();
       this.clickTimer = setTimeout(() => {
         this.clickTimer = null;
-        void this.handlePetting();
+        this.triggerFeatures("click");
       }, 250);
     });
 
@@ -289,12 +283,25 @@ export class PetRenderer {
   private handleDoubleClick(): void {
     this.clearClickTimer();
     this.acceptedClicks = 0;
-    this.element.dispatchEvent(
-      new CustomEvent("chrome-pet:butterfly", {
-        bubbles: true,
-        composed: true,
-      }),
-    );
+    this.triggerFeatures("dblclick");
+  }
+
+  private triggerFeatures(trigger: PetFeatureTrigger): void {
+    for (const feature of this.features) {
+      if (feature.triggers.includes(trigger)) void this.executeFeature(feature.id);
+    }
+  }
+
+  private async executeFeature(id: PetFeatureId): Promise<void> {
+    if (this.destroyed) return;
+    const feature = this.features.find((feature) => feature.id === id);
+    if (!feature) return;
+
+    try {
+      await feature.execute();
+    } catch (error) {
+      console.error(`[Chrome Pet] ${id} 실행 실패`, error);
+    }
   }
 
   // ========================================
@@ -332,7 +339,7 @@ export class PetRenderer {
   // 쓰다듬기
   // ========================================
 
-  private async handlePetting(): Promise<void> {
+  async handlePetting(): Promise<void> {
     if (this.destroyed || this.dragSession || this.pettingInProgress) {
       return;
     }
@@ -452,16 +459,12 @@ export class PetRenderer {
     this.contextMenu = menu;
 
     const menuWidth = 190;
-    const menuHeight = 160;
-
     const left = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
-
-    const top = Math.max(8, Math.min(y, window.innerHeight - menuHeight - 8));
 
     Object.assign(menu.style, {
       position: "fixed",
       left: `${left}px`,
-      top: `${top}px`,
+      top: "0",
       width: `${menuWidth}px`,
       padding: "8px",
       background: "#252837",
@@ -475,26 +478,18 @@ export class PetRenderer {
       pointerEvents: "auto",
     });
 
-    const items = [
-      {
-        label: "🐾 쓰다듬기",
-        action: "pet",
-      },
-      {
-        label: "📊 상태 확인",
-        action: "status",
-      },
-      {
-        label: "⚙️ 설정",
-        action: "settings",
-      },
-    ] as const;
+    const items = this.features.filter((feature) => feature.displayIn.includes("petContextMenu"));
+    const icons: Partial<Record<PetFeatureId, string>> = {
+      petting: "🐾",
+      openPetStatus: "📊",
+      spawnButterfly: "🦋",
+    };
 
     for (const item of items) {
       const button = document.createElement("button");
 
       button.type = "button";
-      button.textContent = item.label;
+      button.textContent = `${icons[item.id] ?? ""} ${item.label}`.trim();
 
       Object.assign(button.style, {
         display: "block",
@@ -521,25 +516,14 @@ export class PetRenderer {
       button.addEventListener("click", () => {
         this.closeContextMenu();
 
-        switch (item.action) {
-          case "pet":
-            void this.handlePetting();
-            break;
-
-          case "status":
-            this.showStatusPanel();
-            break;
-
-          case "settings":
-            this.settings.open();
-            break;
-        }
+        void this.executeFeature(item.id);
       });
 
       menu.appendChild(button);
     }
 
     this.container.appendChild(menu);
+    menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.getBoundingClientRect().height - 8))}px`;
 
     document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
   }
@@ -548,7 +532,7 @@ export class PetRenderer {
   // 상태 확인
   // ========================================
 
-  private showStatusPanel(): void {
+  showStatusPanel(): void {
     // 기존 상태창 제거
     this.statusPanel?.remove();
     this.affectionText = null;
@@ -738,7 +722,6 @@ export class PetRenderer {
     this.statusPanel = null;
     this.affectionText = null;
 
-    this.settings.destroy();
     this.element.remove();
   }
 }

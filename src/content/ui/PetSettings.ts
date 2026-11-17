@@ -1,12 +1,14 @@
+import type { PetFeature } from "../../shared/features";
 
 export class PetSettings {
   private element: HTMLDivElement | null = null;
 
   constructor(
-    private readonly onReroll: () => void,
+    private readonly rerollFeature: PetFeature,
+    private readonly onConfirmReroll: () => void,
   ) {}
 
-  open(): void {
+  open(confirmReroll = false): void {
     this.close();
 
     const overlay = document.createElement("div");
@@ -81,8 +83,10 @@ export class PetSettings {
       margin:0 0 14px;
     `;
 
+    section.append(sectionTitle, description);
+
     const rerollButton = document.createElement("button");
-    rerollButton.textContent = "🎁 펫 다시 뽑기";
+    rerollButton.textContent = `🎁 ${this.rerollFeature.label}`;
 
     Object.assign(rerollButton.style, {
       width: "100%",
@@ -96,10 +100,12 @@ export class PetSettings {
     });
 
     rerollButton.addEventListener("click", () => {
-      this.showRerollConfirmation(panel);
+      void Promise.resolve().then(this.rerollFeature.execute).catch((error) => {
+        console.error("[Chrome Pet] 다시 뽑기 요청 실패", error);
+      });
     });
+    section.appendChild(rerollButton);
 
-    section.append(sectionTitle, description, rerollButton);
     panel.append(header, section);
     overlay.appendChild(panel);
 
@@ -110,13 +116,18 @@ export class PetSettings {
     });
 
     document.documentElement.appendChild(overlay);
+    if (confirmReroll) this.showRerollConfirmation(panel);
+  }
+
+  confirmReroll(): void {
+    this.open(true);
   }
 
   private showRerollConfirmation(panel: HTMLDivElement): void {
     panel.replaceChildren();
 
     const title = document.createElement("h2");
-    title.textContent = "🎁 펫 다시 뽑기";
+    title.textContent = `🎁 ${this.rerollFeature.label}`;
     title.style.cssText = `
       font-size:18px;
       text-align:center;
@@ -165,7 +176,7 @@ export class PetSettings {
 
     confirmButton.addEventListener("click", () => {
       this.close();
-      this.onReroll();
+      this.onConfirmReroll();
     });
 
     buttons.append(cancelButton, confirmButton);

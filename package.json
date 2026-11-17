@@ -4,8 +4,9 @@
   "description": "크롬 확장프로그램용 펫 키우기 프로젝트",
   "main": "index.js",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.popup.config.ts",
     "dev": "vite build --watch",
+    "dev:popup": "vite build --watch --config vite.popup.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "repository": {
