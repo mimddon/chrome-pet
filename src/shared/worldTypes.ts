@@ -46,3 +46,7 @@ export type WorldServerMessage =
 
 export const WORLD_PORT_NAME = "chrome-pet:world";
 export const SIT_TAIL_CYCLE_SECONDS = 0.6;
+export const STAND_UP_SECONDS = 0.8;
+export const LIE_DOWN_SECONDS = 0.8;
+export const FALL_ASLEEP_SECONDS = 1.2;
+export const WAKE_UP_SECONDS = 1.4;

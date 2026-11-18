@@ -11,11 +11,8 @@ type DragSession = {
   pointerId: number;
   startX: number;
   startY: number;
-  pointerX: number;
-  pointerY: number;
   offsetX: number;
   offsetY: number;
-  grabbed: boolean;
   dragging: boolean;
 };
 
@@ -31,10 +28,11 @@ export class PetRenderer {
   private pettingInProgress = false;
   private destroyed = false;
   private clickTimer: ReturnType<typeof setTimeout> | null = null;
-  private grabTimer: ReturnType<typeof setTimeout> | null = null;
   private dragSession: DragSession | null = null;
   private suppressClick = false;
   private acceptedClicks = 0;
+  private sleepEffect: HTMLDivElement | null = null;
+  private sleepAnimation: Animation | null = null;
 
   private readonly onDocumentPointerDown = (event: PointerEvent): void => {
     if (this.contextMenu && !this.contextMenu.contains(event.target as Node)) {
@@ -54,33 +52,12 @@ export class PetRenderer {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      pointerX: event.clientX,
-      pointerY: event.clientY,
       offsetX: 0,
       offsetY: 0,
-      grabbed: false,
       dragging: false,
     };
     this.dragSession = session;
     this.suppressClick = false;
-    this.grabTimer = setTimeout(() => {
-      this.grabTimer = null;
-      if (this.destroyed || this.dragSession !== session) return;
-
-      // The pet keeps walking during the hold, so anchor to its position now.
-      const position = this.pet.getPosition();
-      session.grabbed = true;
-      session.startX = session.pointerX;
-      session.startY = session.pointerY;
-      session.offsetX = session.pointerX - position.x;
-      session.offsetY = session.pointerY - position.y;
-      this.suppressClick = true;
-      this.acceptedClicks = 0;
-      this.clearClickTimer();
-      this.closeContextMenu();
-      this.element.style.cursor = "grabbing";
-      this.interaction.onGrab();
-    }, 300);
 
     window.addEventListener("blur", this.onWindowBlur);
     document.addEventListener("visibilitychange", this.onVisibilityChange);
@@ -214,23 +191,21 @@ export class PetRenderer {
     const session = this.dragSession;
     if (!session) return;
 
-    session.pointerX = event.clientX;
-    session.pointerY = event.clientY;
     const distance = Math.hypot(event.clientX - session.startX, event.clientY - session.startY);
-    if (!session.grabbed) {
-      if (distance >= 5) {
-        this.clearGrabTimer();
-        this.suppressClick = true;
-        this.acceptedClicks = 0;
-        this.clearClickTimer();
-      }
-      return;
-    }
-
     if (!session.dragging) {
       if (distance < 5) return;
 
+      // Keep autonomous motion until dragging starts, then anchor without a jump.
+      const position = this.pet.getPosition();
+      session.offsetX = event.clientX - position.x;
+      session.offsetY = event.clientY - position.y;
       session.dragging = true;
+      this.suppressClick = true;
+      this.acceptedClicks = 0;
+      this.clearClickTimer();
+      this.closeContextMenu();
+      this.element.style.cursor = "grabbing";
+      this.interaction.onGrab();
       this.interaction.onDragStart();
     }
 
@@ -246,7 +221,6 @@ export class PetRenderer {
     const session = this.dragSession;
     if (!session) return;
 
-    this.clearGrabTimer();
     this.dragSession = null;
     if (cancelled) {
       this.suppressClick = true;
@@ -261,15 +235,8 @@ export class PetRenderer {
     }
 
     this.element.style.cursor = "grab";
-    if (session.grabbed) this.interaction.onRelease(session.dragging);
+    if (session.dragging) this.interaction.onRelease(session.dragging);
     this.render();
-  }
-
-  private clearGrabTimer(): void {
-    if (this.grabTimer !== null) {
-      clearTimeout(this.grabTimer);
-      this.grabTimer = null;
-    }
   }
 
   private clearClickTimer(): void {
@@ -313,6 +280,76 @@ export class PetRenderer {
     const flipX = this.pet.getDirection() === "left" ? -1 : 1;
 
     this.element.style.transform = `translate3d(${x}px, ${y}px, 0) scaleX(${flipX})`;
+
+    if (this.sleepEffect) {
+      const largeCat = this.pet.config.species === "cat" && this.pet.config.skin !== "basic";
+      const nose = largeCat ? { x: 75, y: 78 }
+        : this.pet.config.species === "dog" ? { x: 60, y: 63 } : { x: 64, y: 61 };
+      const size = this.pet.config.size;
+      const noseX = flipX === 1 ? nose.x : 96 - nose.x;
+      this.sleepEffect.style.transform = `translate3d(${x + noseX * size / 96}px, ${y + nose.y * size / 96}px, 0) scale(${flipX * size / 96}, ${size / 96})`;
+    }
+  }
+
+  syncSleepEffect(elapsedTime: number | null): void {
+    if (this.destroyed) return;
+    if (elapsedTime === null || !Number.isFinite(elapsedTime)) {
+      this.sleepAnimation?.cancel();
+      this.sleepEffect?.remove();
+      this.sleepAnimation = null;
+      this.sleepEffect = null;
+      return;
+    }
+
+    if (!this.sleepEffect) {
+      const effect = document.createElement("div");
+      effect.setAttribute("aria-hidden", "true");
+      Object.assign(effect.style, {
+        position: "fixed",
+        left: "0",
+        top: "0",
+        width: "0",
+        height: "0",
+        transformOrigin: "0 0",
+        pointerEvents: "none",
+        zIndex: "2147483647",
+      });
+      const bubble = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      bubble.setAttribute("viewBox", "0 0 20 24");
+      Object.assign(bubble.style, {
+        position: "absolute",
+        left: "0",
+        bottom: "0",
+        width: "20px",
+        height: "24px",
+        overflow: "visible",
+        transformOrigin: "0 100%",
+      });
+      const outline = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      outline.setAttribute("d", "M 1 23 C 3 19 3 16 3 12 C 2 5 6 1 12 1 C 18 1 20 6 19 12 C 18 18 11 19 7 19 Z");
+      outline.setAttribute("fill", "rgba(191, 227, 246, 0.7)");
+      outline.setAttribute("stroke", "#7faac3");
+      outline.setAttribute("stroke-width", "1");
+      const highlight = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      highlight.setAttribute("d", "M 8 5 Q 13 2 16 7");
+      highlight.setAttribute("fill", "none");
+      highlight.setAttribute("stroke", "rgba(255, 255, 255, 0.9)");
+      highlight.setAttribute("stroke-width", "2");
+      highlight.setAttribute("stroke-linecap", "round");
+      bubble.append(outline, highlight);
+      effect.append(bubble);
+      this.container.append(effect);
+      this.sleepEffect = effect;
+      this.sleepAnimation = bubble.animate([
+        { transform: "scale(0.35)", opacity: 0.65 },
+        { transform: "scale(1)", opacity: 1 },
+        { transform: "scale(0.35)", opacity: 0.65 },
+      ], { duration: 2400, iterations: Infinity, easing: "ease-in-out" });
+    }
+
+    // Align the breathing cycle across tabs, including tabs opened mid-sleep.
+    if (this.sleepAnimation) this.sleepAnimation.currentTime = Math.max(0, elapsedTime) * 1000;
+    this.render();
   }
 
   setImage(url: string): void {
@@ -702,6 +739,7 @@ export class PetRenderer {
   }
 
   destroy(): void {
+    this.syncSleepEffect(null);
     this.destroyed = true;
     this.finishInteraction(true);
     this.clearClickTimer();

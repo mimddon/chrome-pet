@@ -1,9 +1,15 @@
 
 import type { PetAnimation, PetState } from "../../shared/petTypes";
 import { getPetImageUrl } from "../../shared/petConfig";
-import { SIT_TAIL_CYCLE_SECONDS } from "../../shared/worldTypes";
-import { Pet } from "./Pet";
-import { PetRenderer } from "./PetRenderer";
+import {
+  FALL_ASLEEP_SECONDS,
+  LIE_DOWN_SECONDS,
+  SIT_TAIL_CYCLE_SECONDS,
+  STAND_UP_SECONDS,
+  WAKE_UP_SECONDS,
+} from "../../shared/worldTypes";
+import type { Pet } from "./Pet";
+import type { PetRenderer } from "./PetRenderer";
 
 interface AnimationDefinition {
   frames: string[];
@@ -33,6 +39,13 @@ export class PetAnimator {
     const sitFrames = [1, 2, 3, 4].map((frame) =>
       chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/sit-${frame}.png`),
     );
+    const lieFrames = [1, 2, 3, 4].map((frame) =>
+      chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/lie-${frame}.png`),
+    );
+    const dozeFrames = [1, 2, 3].map((frame) =>
+      chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/doze-${frame}.png`),
+    );
+    const wakeFrames = [...dozeFrames].reverse().concat([...lieFrames].reverse());
     this.tailFrames = ["sit-4", "sit-tail-left", "sit-4", "sit-tail-right", "sit-4"].map((frame) =>
       chrome.runtime.getURL(`assets/pets/${config.species}/${config.skin}/${frame}.png`),
     );
@@ -53,15 +66,45 @@ export class PetAnimator {
         frameDuration: 200,
         loop: false,
       },
+      stand: {
+        frames: [...sitFrames].reverse(),
+        frameDuration: STAND_UP_SECONDS * 1000 / sitFrames.length,
+        loop: false,
+      },
       jump: {
         frames: [getPetImageUrl(config, "idle")],
         frameDuration: 150,
         loop: false,
       },
+      lie: {
+        frames: lieFrames,
+        frameDuration: LIE_DOWN_SECONDS * 1000 / lieFrames.length,
+        loop: false,
+      },
+      doze: {
+        frames: dozeFrames,
+        frameDuration: FALL_ASLEEP_SECONDS * 1000 / dozeFrames.length,
+        loop: false,
+      },
       sleep: {
-        frames: [getPetImageUrl(config, "idle")],
+        frames: [getPetImageUrl(config, "sleep")],
         frameDuration: 500,
         loop: true,
+      },
+      wake: {
+        frames: wakeFrames,
+        frameDuration: WAKE_UP_SECONDS * 1000 / wakeFrames.length,
+        loop: false,
+      },
+      sleepToSit: {
+        frames: [...dozeFrames].reverse().concat(lieFrames[3]!, lieFrames[2]!, sitFrames[2]!, sitFrames[3]!),
+        frameDuration: WAKE_UP_SECONDS * 1000 / 7,
+        loop: false,
+      },
+      sitToSleep: {
+        frames: [sitFrames[3]!, sitFrames[2]!, lieFrames[2]!, lieFrames[3]!],
+        frameDuration: LIE_DOWN_SECONDS * 1000 / 4,
+        loop: false,
       },
       pet: {
         frames: [getPetImageUrl(config, "idle")],
@@ -80,10 +123,22 @@ export class PetAnimator {
         return "walk";
       case "sitting":
         return "sit";
+      case "standingUp":
+        return "stand";
       case "jumping":
         return "jump";
+      case "lyingDown":
+        return "lie";
+      case "fallingAsleep":
+        return "doze";
       case "sleeping":
         return "sleep";
+      case "wakingUp":
+        return "wake";
+      case "sleepToSit":
+        return "sleepToSit";
+      case "sitToSleep":
+        return "sitToSleep";
       case "idle":
       default:
         return "idle";
@@ -127,7 +182,8 @@ export class PetAnimator {
     const nextAnimation = this.getAnimationForState(this.pet.getState());
     if (nextAnimation !== this.currentAnimation) this.play(nextAnimation);
     const animation = this.animations[this.currentAnimation];
-    const frame = Math.floor(Math.max(0, elapsedTime) * 1000 / animation.frameDuration);
+    // Timestamp subtraction can land just before an exact frame boundary.
+    const frame = Math.floor(Math.max(0, elapsedTime) * 1000 / animation.frameDuration + 1e-6);
     this.currentFrame = animation.loop
       ? frame % animation.frames.length
       : Math.min(frame, animation.frames.length - 1);

@@ -110,6 +110,7 @@ function startPet(owned: OwnedPet): PetRuntime {
     pet.setDirection(snapshot.direction);
     pet.setState(snapshot.state);
     animator.sync(snapshot.animationTime, snapshot.tailWagTime);
+    renderer.syncSleepEffect(snapshot.state === "sleeping" ? snapshot.animationTime : null);
     butterfly.sync(snapshot.butterfly);
     treat.sync(snapshot.treat);
     renderer.render();
