@@ -35,6 +35,7 @@ export class PetWorld {
   private butterfly: ButterflyState | null = null;
   private catchTime = 0;
   private holder: string | null = null;
+  private dragStartedAt = 0;
   private dragged = false;
   private elapsedTime = 0;
   private animationState: PetState = "idle";
@@ -53,7 +54,7 @@ export class PetWorld {
   }
 
   snapshot(): PetWorldSnapshot {
-    const state = this.holder ? "idle"
+    const state = this.holder ? "dragging"
       : this.sleepPhase ? this.sleepPhase
       : this.standingStartedAt !== null ? "standingUp"
       : this.target ? "walking"
@@ -69,7 +70,8 @@ export class PetWorld {
       y: this.y / HEIGHT,
       direction: this.direction,
       state,
-      animationTime: this.elapsedTime - (this.sleepPhase ? this.phaseStartedAt
+      animationTime: this.elapsedTime - (this.holder ? this.dragStartedAt
+        : this.sleepPhase ? this.phaseStartedAt
         : this.standingStartedAt ?? (this.sittingTime > 0 ? this.sittingStartedAt : this.animationStartedAt)),
       tailWagTime: state === "sitting" && this.sittingTime > 0 ? this.tailWagTime : null,
       butterfly: this.butterfly ? {
@@ -93,6 +95,7 @@ export class PetWorld {
             this.remainingTime = this.idleTime();
           }
           this.holder = owner;
+          this.dragStartedAt = this.elapsedTime;
           this.dragged = false;
           if (this.sittingTime > 0) {
             this.stopSitting();

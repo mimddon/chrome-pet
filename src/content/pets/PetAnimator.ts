@@ -56,6 +56,15 @@ export class PetAnimator {
         frameDuration: 300,
         loop: true,
       },
+      drag: {
+        frames: config.species === "cat" && config.skin === "basic"
+          ? [1, 2, 3, 4].map((frame) =>
+            chrome.runtime.getURL(`assets/pets/cat/basic/drag-${frame}.png`),
+          )
+          : [getPetImageUrl(config, "idle")],
+        frameDuration: 80,
+        loop: true,
+      },
       walk: {
         frames: walkFrames,
         frameDuration: 200,
@@ -119,6 +128,8 @@ export class PetAnimator {
   // 펫의 행동 상태를 애니메이션 종류로 변환
   private getAnimationForState(state: PetState): PetAnimation {
     switch (state) {
+      case "dragging":
+        return "drag";
       case "walking":
         return "walk";
       case "sitting":

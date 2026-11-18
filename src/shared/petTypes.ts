@@ -3,6 +3,7 @@ export type PetSpecies = "cat" | "dog";
 
 export type PetAnimation =
   | "idle"
+  | "drag"
   | "walk"
   | "sit"
   | "stand"
@@ -19,6 +20,7 @@ export type PetDirection = "left" | "right";
 
 export type PetState =
   | "idle"
+  | "dragging"
   | "walking"
   | "sitting"
   | "standingUp"
